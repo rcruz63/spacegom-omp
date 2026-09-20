@@ -15,7 +15,7 @@ export interface PersonnelRosterEntry {
   notes: string | null;
 }
 
-export const PERSONNEL_ROSTER: PersonnelRosterEntry[] = personnelJson as PersonnelRosterEntry[];
+export const PERSONNEL_ROSTER: PersonnelRosterEntry[] = personnelJson as unknown as PersonnelRosterEntry[];
 
 export function getExperienceModifier(exp: ExperienceLevel): number {
   if (exp === 'novato') return -1;

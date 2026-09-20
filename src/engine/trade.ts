@@ -2,7 +2,7 @@ import { CompanyState } from '../types/company';
 import { PlanetData } from '../types/universe';
 import { ProductCode, TradeOrder } from '../types/trade';
 import { TRADE_PRODUCTS } from '../data/tradeProducts';
-import { calculateEmployeeDiceModifier, updateEmployeeAfterRoll } from './company';
+import { updateEmployeeAfterRoll } from './company';
 
 export interface BuyGoodsParams {
   productCode: ProductCode;

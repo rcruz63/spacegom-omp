@@ -2,7 +2,7 @@ import planetsJson from '../data/planets.json';
 import { PlanetData, SectorArea, SectorQuadrant, UniverseState } from '../types/universe';
 import { rollDice } from './dice';
 
-export const ALL_PLANETS: PlanetData[] = planetsJson as PlanetData[];
+export const ALL_PLANETS: PlanetData[] = planetsJson as unknown as PlanetData[];
 
 export const PLANETS_BY_CODE: Record<number, PlanetData> = ALL_PLANETS.reduce((acc, p) => {
   acc[p.code] = p;
