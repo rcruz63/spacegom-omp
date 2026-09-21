@@ -16,8 +16,14 @@ import {
   Dices, 
   FileText, 
   ChevronLeft,
-  AlertTriangle
+  AlertTriangle,
+  FastForward,
+  Clock,
+  ShieldCheck
 } from 'lucide-react';
+import { calculateNextMilestone, advanceTimeToMilestone } from '../engine/eventQueue';
+import { GameEvent } from '../types/events';
+import { EventResolutionModal } from './EventResolutionModal';
 import { DiceModal } from './DiceModal';
 import { AuditLogModal } from './AuditLogModal';
 import { SectorMapView } from './tabs/SectorMapView';
@@ -41,6 +47,25 @@ export function GameDashboard({ game: initialGame, onExitToMenu }: GameDashboard
   const [activeTab, setActiveTab] = useState<ActiveTab>('sector');
   const [isDiceModalOpen, setIsDiceModalOpen] = useState(false);
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
+  const [activeResolvingEvent, setActiveResolvingEvent] = useState<GameEvent | null>(null);
+
+  const milestone = calculateNextMilestone(game.date, game.events || []);
+  const director = game.company.employees.find(e => e.isActive && e.position.toLowerCase().includes('director gerente'));
+
+  const handleAdvanceToMilestone = () => {
+    const targetEvent = milestone.event;
+    const res = advanceTimeToMilestone(game);
+    handleUpdateGame(res.nextGame);
+
+    if (targetEvent && targetEvent.type === 'hire_resolution') {
+      setActiveResolvingEvent(targetEvent);
+    }
+  };
+
+  const handleEventResolved = (updatedGame: GameSave) => {
+    handleUpdateGame(updatedGame);
+    setActiveResolvingEvent(null);
+  };
 
   const currentPlanet = game.universe.currentPlanetCode ? PLANETS_BY_CODE[game.universe.currentPlanetCode] : null;
 
@@ -152,6 +177,45 @@ export function GameDashboard({ game: initialGame, onExitToMenu }: GameDashboard
         </div>
       </header>
 
+      {/* Time & Event Control Bar */}
+      <div className="bg-space-950/70 border-b border-space-800 px-4 py-2 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Director Gerente Status */}
+          {director && (
+            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border ${
+              director.isBusy 
+                ? 'bg-amber-950/40 border-amber-800/60 text-amber-300' 
+                : 'bg-emerald-950/40 border-emerald-800/60 text-emerald-300'
+            }`}>
+              <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+              <span>Director: <strong>{director.isBusy ? director.busyReason : 'Disponible para encargos'}</strong></span>
+            </div>
+          )}
+
+          {/* Próximo Hito / Evento */}
+          <div className="flex items-center gap-1.5 text-slate-300">
+            <Clock className="w-3.5 h-3.5 text-space-accent shrink-0" />
+            <span>
+              Próximo hito: <strong className="text-slate-100">{milestone.reason}</strong>{' '}
+              <span className="text-space-accent font-mono font-bold">
+                (en {milestone.days} {milestone.days === 1 ? 'día' : 'días'})
+              </span>
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleAdvanceToMilestone}
+            className="flex items-center gap-1.5 px-3 py-1 bg-space-accent text-space-950 font-bold rounded-lg hover:bg-sky-400 transition-colors shadow-sm"
+            title="Avanzar el calendario hasta el próximo evento o cierre de nóminas"
+          >
+            <FastForward className="w-3.5 h-3.5" />
+            <span>Avanzar al Hito (+{milestone.days}d)</span>
+          </button>
+        </div>
+      </div>
+
       {/* Navigation Tabs */}
       <nav className="bg-space-800/50 border-b border-space-700/80 px-4 flex gap-1 overflow-x-auto text-xs font-semibold">
         <button
@@ -256,11 +320,21 @@ export function GameDashboard({ game: initialGame, onExitToMenu }: GameDashboard
         onRollComplete={handleDiceRollComplete}
       />
 
+
       <AuditLogModal
         isOpen={isLogModalOpen}
         onClose={() => setIsLogModalOpen(false)}
         entries={game.auditLog}
       />
+
+      {/* Event Resolution Modal */}
+      {activeResolvingEvent && (
+        <EventResolutionModal
+          event={activeResolvingEvent}
+          game={game}
+          onResolved={handleEventResolved}
+        />
+      )}
     </div>
   );
 }

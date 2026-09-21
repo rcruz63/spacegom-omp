@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { GameSave } from '../../types/game';
-import { calculateEmployeeDiceModifier, fireEmployee, hireEmployee } from '../../engine/company';
-import { ExperienceLevel } from '../../types/common';
-import { Users, UserPlus, HeartPulse, Wrench } from 'lucide-react';
+import { calculateEmployeeDiceModifier, fireEmployee } from '../../engine/company';
+import { PLANETS_BY_CODE } from '../../engine/universe';
+import { HiringModal } from '../HiringModal';
+import { Users, UserPlus, HeartPulse, Wrench, Clock } from 'lucide-react';
 
 interface CompanyManagementViewProps {
   game: GameSave;
@@ -11,11 +12,7 @@ interface CompanyManagementViewProps {
 
 export function CompanyManagementView({ game, onUpdateGame }: CompanyManagementViewProps) {
   const [isHiringOpen, setIsHiringOpen] = useState(false);
-  const [newHirePosition, setNewHirePosition] = useState('Médico');
-  const [newHireName, setNewHireName] = useState('');
-  const [newHireSalary, setNewHireSalary] = useState(10);
-  const [newHireExp, setNewHireExp] = useState<ExperienceLevel>('estandar');
-
+  const currentPlanet = game.universe.currentPlanetCode ? PLANETS_BY_CODE[game.universe.currentPlanetCode] : null;
   const activeEmployees = game.company.employees.filter(e => e.isActive);
   const totalSalaries = activeEmployees.reduce((sum, e) => sum + e.monthlySalary, 0);
 
@@ -44,39 +41,7 @@ export function CompanyManagementView({ game, onUpdateGame }: CompanyManagementV
     });
   };
 
-  const handleHireSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newHireName.trim()) return;
-
-    const nextComp = hireEmployee(game.company, {
-      name: newHireName.trim(),
-      position: newHirePosition,
-      monthlySalary: Number(newHireSalary),
-      experience: newHireExp,
-      morale: 'media'
-    });
-
-    const updatedLog = [
-      {
-        id: `log_hire_${Date.now()}`,
-        gameDate: game.date,
-        category: 'tripulacion' as const,
-        action: 'Contratación de Empleado',
-        details: `Contratado ${newHireName} como ${newHirePosition} (${newHireSalary} SC/mes, exp: ${newHireExp}).`,
-        timestamp: new Date().toISOString()
-      },
-      ...game.auditLog
-    ];
-
-    onUpdateGame({
-      ...game,
-      company: nextComp,
-      auditLog: updatedLog
-    });
-
-    setIsHiringOpen(false);
-    setNewHireName('');
-  };
+  // La contratación ahora se gestiona a través de HiringModal y el motor de EventQueue
 
   return (
     <div className="space-y-6">
@@ -167,80 +132,13 @@ export function CompanyManagementView({ game, onUpdateGame }: CompanyManagementV
       </div>
 
       {/* Hiring Modal/Section */}
-      {isHiringOpen && (
-        <div className="p-6 bg-space-800 border border-space-600 rounded-xl shadow-xl">
-          <h3 className="text-md font-bold text-slate-100 mb-4">Contratar Nuevo Trabajador</h3>
-          <form onSubmit={handleHireSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-xs uppercase font-semibold text-slate-300 mb-1">Puesto</label>
-              <select
-                value={newHirePosition}
-                onChange={e => setNewHirePosition(e.target.value)}
-                className="w-full bg-space-900 border border-space-600 rounded-lg px-3 py-2 text-xs text-slate-100"
-              >
-                <option value="Médico">Médico (15 SC)</option>
-                <option value="Psicólogo">Psicólogo (12 SC)</option>
-                <option value="Abogado">Abogado (10 SC)</option>
-                <option value="Auxiliar de vuelo">Auxiliar de vuelo (2 SC)</option>
-                <option value="Operario de logística y almacén">Operario de almacén (1 SC)</option>
-                <option value="Técnico de mantenimiento de astronaves">Técnico mantenimiento (6 SC)</option>
-                <option value="Vicedirector gerente">Vicedirector gerente (15 SC)</option>
-                <option value="Soldado mercenario">Soldado mercenario (8 SC)</option>
-                <option value="Agente secreto">Agente secreto (50 SC)</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs uppercase font-semibold text-slate-300 mb-1">Nombre</label>
-              <input
-                type="text"
-                value={newHireName}
-                onChange={e => setNewHireName(e.target.value)}
-                placeholder="Ej. Dr. Sandra Vance"
-                className="w-full bg-space-900 border border-space-600 rounded-lg px-3 py-2 text-xs text-slate-100"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-xs uppercase font-semibold text-slate-300 mb-1">Salario (SC)</label>
-              <input
-                type="number"
-                value={newHireSalary}
-                onChange={e => setNewHireSalary(Number(e.target.value))}
-                className="w-full bg-space-900 border border-space-600 rounded-lg px-3 py-2 text-xs text-slate-100"
-                min="1"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-xs uppercase font-semibold text-slate-300 mb-1">Experiencia Inicial</label>
-              <select
-                value={newHireExp}
-                onChange={e => setNewHireExp(e.target.value as ExperienceLevel)}
-                className="w-full bg-space-900 border border-space-600 rounded-lg px-3 py-2 text-xs text-slate-100"
-              >
-                <option value="novato">Novato (-1 a tiradas, mitad tiempo/sueldo)</option>
-                <option value="estandar">Estándar (+0 a tiradas)</option>
-                <option value="veterano">Veterano (+1 a tiradas, doble tiempo/sueldo)</option>
-              </select>
-            </div>
-            <div className="md:col-span-4 flex justify-end gap-2 mt-2">
-              <button
-                type="button"
-                onClick={() => setIsHiringOpen(false)}
-                className="px-4 py-1.5 text-xs text-slate-400 border border-space-700 rounded-lg hover:bg-space-700"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-1.5 text-xs bg-space-accent text-space-900 font-bold rounded-lg hover:bg-sky-400"
-              >
-                Confirmar Contratación
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+      <HiringModal
+        isOpen={isHiringOpen}
+        onClose={() => setIsHiringOpen(false)}
+        game={game}
+        currentPlanet={currentPlanet}
+        onUpdateGame={onUpdateGame}
+      />
 
       {/* Roster Table */}
       <div className="bg-space-800 border border-space-700 rounded-xl overflow-hidden shadow-xl">
@@ -267,7 +165,18 @@ export function CompanyManagementView({ game, onUpdateGame }: CompanyManagementV
                 const mod = calculateEmployeeDiceModifier(emp);
                 return (
                   <tr key={emp.id} className="hover:bg-space-700/30 transition-colors">
-                    <td className="py-3 px-4 font-semibold text-slate-100">{emp.position}</td>
+                    <td className="py-3 px-4 font-semibold text-slate-100">
+                      <span>{emp.position}</span>
+                      {emp.isBusy && (
+                        <span 
+                          className="ml-2 text-[10px] px-2 py-0.5 rounded bg-amber-950/80 text-amber-300 border border-amber-800 font-normal inline-flex items-center gap-1"
+                          title={emp.busyReason || 'Ocupado'}
+                        >
+                          <Clock className="w-2.5 h-2.5" />
+                          <span>Ocupado</span>
+                        </span>
+                      )}
+                    </td>
                     <td className="py-3 px-4 text-slate-300">{emp.name}</td>
                     <td className="py-3 px-4 font-mono text-amber-300">{emp.monthlySalary} SC</td>
                     <td className="py-3 px-4 capitalize">
