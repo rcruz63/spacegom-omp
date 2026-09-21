@@ -5,10 +5,10 @@ import { ExperienceLevel } from '../types/common';
 import { 
   POSITIONS_CATALOG, 
   getAvailablePositionsForPlanet, 
-  calculateHiringParameters, 
   startHiringSearch 
 } from '../engine/hiring';
 import { PERSONNEL_NAMES, getRandomItem, getUniqueRandomItems } from '../data/names';
+import { DiceRollerVisual } from './common/DiceRollerVisual';
 import { 
   UserPlus, 
   Sparkles, 
@@ -54,15 +54,56 @@ export function HiringModal({
     return getUniqueRandomItems(PERSONNEL_NAMES, 1, usedNames)[0] || 'Candidato Desconocido';
   });
 
-  // Tirada de días de búsqueda (opcionalmente manual)
-  const [manualDaysRoll] = useState<number | undefined>(undefined);
-
   const selectedPosition = POSITIONS_CATALOG[selectedPositionKey] || availablePositions[0];
+  const isFixedDays = selectedPosition?.searchTimeDice === '1' || selectedPosition?.searchTimeDice === '2';
 
-  const calculated = useMemo(() => {
-    if (!selectedPosition) return null;
-    return calculateHiringParameters(selectedPosition.title, experience, manualDaysRoll);
-  }, [selectedPosition, experience, manualDaysRoll]);
+  const diceCountForPosition = useMemo(() => {
+    if (!selectedPosition) return 1;
+    if (selectedPosition.searchTimeDice === '1d6') return 1;
+    if (selectedPosition.searchTimeDice === '2d6') return 2;
+    if (selectedPosition.searchTimeDice === '3d6') return 3;
+    return 1;
+  }, [selectedPosition]);
+
+  // Estado de dados para la duración de búsqueda
+  const [searchDiceValues, setSearchDiceValues] = useState<number[] | null>(() => {
+    if (isFixedDays) {
+      return [Number(selectedPosition.searchTimeDice)];
+    }
+    return null;
+  });
+  const [isSearchDiceRolled, setIsSearchDiceRolled] = useState<boolean>(() => isFixedDays);
+
+  const handlePositionChange = (posKey: string) => {
+    setSelectedPositionKey(posKey);
+    const newPos = POSITIONS_CATALOG[posKey];
+    if (newPos?.searchTimeDice === '1' || newPos?.searchTimeDice === '2') {
+      setSearchDiceValues([Number(newPos.searchTimeDice)]);
+      setIsSearchDiceRolled(true);
+    } else {
+      setSearchDiceValues(null);
+      setIsSearchDiceRolled(false);
+    }
+  };
+
+  const rawDiceSum = useMemo(() => {
+    if (!searchDiceValues) return null;
+    return searchDiceValues.reduce((a, b) => a + b, 0);
+  }, [searchDiceValues]);
+
+  const calculatedDays = useMemo(() => {
+    if (rawDiceSum === null) return null;
+    if (experience === 'novato') return Math.max(1, Math.ceil(rawDiceSum / 2));
+    if (experience === 'veterano') return rawDiceSum * 2;
+    return rawDiceSum;
+  }, [rawDiceSum, experience]);
+
+  const calculatedSalary = useMemo(() => {
+    if (!selectedPosition) return 0;
+    if (experience === 'novato') return Math.max(1, Math.ceil(selectedPosition.baseSalary / 2));
+    if (experience === 'veterano') return selectedPosition.baseSalary * 2;
+    return selectedPosition.baseSalary;
+  }, [selectedPosition, experience]);
 
   const handleShuffleName = () => {
     const usedNames = game.company.employees.map(e => e.name);
@@ -82,13 +123,18 @@ export function HiringModal({
       return;
     }
 
+    if (rawDiceSum === null) {
+      alert('Debes lanzar o introducir los dados de tiempo de búsqueda.');
+      return;
+    }
+
     try {
       const res = startHiringSearch(
         game,
         selectedPosition.title,
         experience,
         candidateName,
-        manualDaysRoll
+        rawDiceSum
       );
 
       onUpdateGame(res.nextGame);
@@ -98,6 +144,7 @@ export function HiringModal({
       alert(message);
     }
   };
+
 
   if (!isOpen) return null;
 
@@ -192,8 +239,8 @@ export function HiringModal({
                 </label>
                 <select
                   value={selectedPositionKey}
-                  onChange={e => setSelectedPositionKey(e.target.value)}
-                  className="w-full bg-space-950 border border-space-700 rounded-lg px-3 py-2.5 text-slate-100 text-xs focus:outline-none focus:border-space-accent"
+                  onChange={e => handlePositionChange(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2.5 text-slate-100 text-xs focus:outline-none focus:border-space-accent"
                 >
                   {availablePositions.map(pos => (
                     <option key={pos.title} value={pos.title}>
@@ -243,6 +290,37 @@ export function HiringModal({
                 </div>
               </div>
 
+              {/* Tirador de Tiempo de Búsqueda (Automático o Manual) */}
+              {isFixedDays ? (
+                <div className="p-3 bg-space-950 border border-space-800 rounded-xl text-xs text-slate-300 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-sky-400" />
+                    <span>Tiempo fijado por reglamento para {selectedPosition.title}:</span>
+                  </div>
+                  <strong className="text-slate-100 font-bold">
+                    {calculatedDays} {calculatedDays === 1 ? 'día' : 'días'}
+                  </strong>
+                </div>
+              ) : (
+                <DiceRollerVisual
+                  diceCount={diceCountForPosition}
+                  values={searchDiceValues}
+                  isRolled={isSearchDiceRolled}
+                  title={`Tirada de Días de Búsqueda (${selectedPosition.searchTimeDice})`}
+                  subtitle={`Determina los días necesarios para localizar al candidato (${experience})`}
+                  resultLabel="Días Calculados"
+                  resultValue={calculatedDays !== null ? `${calculatedDays} ${calculatedDays === 1 ? 'día' : 'días'}` : undefined}
+                  onRollComplete={vals => {
+                    setSearchDiceValues(vals);
+                    setIsSearchDiceRolled(true);
+                  }}
+                  onManualChange={vals => {
+                    setSearchDiceValues(vals);
+                    setIsSearchDiceRolled(true);
+                  }}
+                />
+              )}
+
               {/* Nombre del Candidato */}
               <div>
                 <div className="flex items-center justify-between mb-1">
@@ -262,55 +340,52 @@ export function HiringModal({
                   type="text"
                   value={candidateName}
                   onChange={e => setCandidateName(e.target.value)}
-                  className="w-full bg-space-950 border border-space-700 rounded-lg px-3 py-2 text-slate-100 text-xs focus:outline-none focus:border-space-accent"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 text-xs focus:outline-none focus:border-space-accent"
                   required
                 />
               </div>
 
               {/* Resumen de Parámetros de la Búsqueda */}
-              {calculated && (
-                <div className="p-4 bg-space-950 border border-space-800 rounded-xl grid grid-cols-3 gap-3 text-center">
-                  <div className="p-2.5 bg-space-900/60 rounded-lg border border-space-800/80">
-                    <div className="flex items-center justify-center gap-1 text-slate-400 mb-0.5">
-                      <Clock className="w-3.5 h-3.5 text-sky-400" />
-                      <span className="text-[11px] uppercase font-semibold">Duración</span>
-                    </div>
-                    <span className="text-base font-black text-slate-100">
-                      {calculated.searchDays} {calculated.searchDays === 1 ? 'día' : 'días'}
-                    </span>
-                    <span className="text-[10px] text-slate-500 block">
-                      (Fórmula: {calculated.formula})
-                    </span>
+              <div className="p-4 bg-space-950 border border-space-800 rounded-xl grid grid-cols-3 gap-3 text-center">
+                <div className="p-2.5 bg-space-900/60 rounded-lg border border-space-800/80">
+                  <div className="flex items-center justify-center gap-1 text-slate-400 mb-0.5">
+                    <Clock className="w-3.5 h-3.5 text-sky-400" />
+                    <span className="text-[11px] uppercase font-semibold">Duración</span>
                   </div>
-
-                  <div className="p-2.5 bg-space-900/60 rounded-lg border border-space-800/80">
-                    <div className="flex items-center justify-center gap-1 text-slate-400 mb-0.5">
-                      <Coins className="w-3.5 h-3.5 text-amber-400" />
-                      <span className="text-[11px] uppercase font-semibold">Salario</span>
-                    </div>
-                    <span className="text-base font-black text-amber-300">
-                      {calculated.monthlySalary} SC
-                    </span>
-                    <span className="text-[10px] text-slate-500 block">
-                      mensuales
-                    </span>
-                  </div>
-
-                  <div className="p-2.5 bg-space-900/60 rounded-lg border border-space-800/80">
-                    <div className="flex items-center justify-center gap-1 text-slate-400 mb-0.5">
-                      <Target className="w-3.5 h-3.5 text-rose-400" />
-                      <span className="text-[11px] uppercase font-semibold">Dificultad</span>
-                    </div>
-                    <span className="text-base font-black text-rose-300">
-                      {calculated.hireThreshold}+
-                    </span>
-                    <span className="text-[10px] text-slate-500 block">
-                      en 2D6 + mods
-                    </span>
-                  </div>
+                  <span className={`text-base font-black ${calculatedDays !== null ? 'text-slate-100' : 'text-slate-500'}`}>
+                    {calculatedDays !== null ? `${calculatedDays} ${calculatedDays === 1 ? 'día' : 'días'}` : 'Pendiente'}
+                  </span>
+                  <span className="text-[10px] text-slate-500 block">
+                    (Fórmula: {selectedPosition.searchTimeDice})
+                  </span>
                 </div>
-              )}
 
+                <div className="p-2.5 bg-space-900/60 rounded-lg border border-space-800/80">
+                  <div className="flex items-center justify-center gap-1 text-slate-400 mb-0.5">
+                    <Coins className="w-3.5 h-3.5 text-amber-400" />
+                    <span className="text-[11px] uppercase font-semibold">Salario</span>
+                  </div>
+                  <span className="text-base font-black text-amber-300">
+                    {calculatedSalary} SC
+                  </span>
+                  <span className="text-[10px] text-slate-500 block">
+                    mensuales
+                  </span>
+                </div>
+
+                <div className="p-2.5 bg-space-900/60 rounded-lg border border-space-800/80">
+                  <div className="flex items-center justify-center gap-1 text-slate-400 mb-0.5">
+                    <Target className="w-3.5 h-3.5 text-rose-400" />
+                    <span className="text-[11px] uppercase font-semibold">Dificultad</span>
+                  </div>
+                  <span className="text-base font-black text-rose-300">
+                    {selectedPosition.hireThreshold}+
+                  </span>
+                  <span className="text-[10px] text-slate-500 block">
+                    en 2D6 + mods
+                  </span>
+                </div>
+              </div>
               {/* Botones de acción */}
               <div className="flex justify-end gap-3 pt-3 border-t border-space-800">
                 <button
@@ -322,7 +397,7 @@ export function HiringModal({
                 </button>
                 <button
                   type="submit"
-                  disabled={!director || director.isBusy}
+                  disabled={!director || director.isBusy || !isSearchDiceRolled}
                   className="flex items-center gap-2 px-5 py-2 bg-space-accent text-space-950 font-bold rounded-lg hover:bg-sky-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-space-accent/10"
                 >
                   <UserPlus className="w-4 h-4" />
