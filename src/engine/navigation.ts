@@ -57,7 +57,11 @@ export function createInitialUniverse(options: StartingUniverseOptions = {}): Un
     areas: {
       [areaId]: initialArea
     },
-    usedPlanetCodes: [startPlanet.code]
+    usedPlanetCodes: [startPlanet.code],
+    originPlanetCode: startPlanet.code,
+    originAreaId: areaId,
+    originCol: startCol,
+    originRow: startRow
   };
 }
 

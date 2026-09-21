@@ -7,38 +7,56 @@ import { SpaceportDockingModal } from '../spaceport/SpaceportDockingModal';
 import { ManeuverType } from '../../engine/flightManeuvers';
 import { advanceDays } from '../../engine/calendar';
 import { PLANETS_BY_CODE } from '../../engine/universe';
-import { Compass, Globe, Navigation, Fuel, Radio } from 'lucide-react';
+
+import { SectorNavigationHeader } from '../sector/SectorNavigationHeader';
+import { SectorGridMap } from '../sector/SectorGridMap';
+import { PlanetFullCard } from '../sector/PlanetFullCard';
+import { DiscoveredPlanetsPanel } from '../sector/DiscoveredPlanetsPanel';
+
+import { 
+  Navigation, 
+  Radio, 
+  Globe, 
+  MapPin 
+} from 'lucide-react';
 
 interface SectorMapViewProps {
   game: GameSave;
   onUpdateGame: (game: GameSave) => void;
 }
 
-const COLS = ['A', 'B', 'C', 'D', 'E', 'F'];
-const ROWS = [1, 2, 3, 4, 5, 6];
-
 export function SectorMapView({ game, onUpdateGame }: SectorMapViewProps) {
-  const currentArea = game.universe.areas[game.universe.currentAreaId];
+  // Sector que se está visualizando (por defecto el sector actual de la nave)
+  const [viewedAreaId, setViewedAreaId] = useState<number>(game.universe.currentAreaId);
+
+  // Cuadrante seleccionado para inspeccionar en el mapa
   const [selectedQuadKey, setSelectedQuadKey] = useState<string>(
     `${game.universe.currentCol}${game.universe.currentRow}`
   );
 
-  const selectedQuad = currentArea?.quadrants[selectedQuadKey];
+  const viewedArea = game.universe.areas[viewedAreaId];
+  const selectedQuad = viewedArea?.quadrants[selectedQuadKey];
   const selectedPlanet = selectedQuad?.planetCode ? PLANETS_BY_CODE[selectedQuad.planetCode] : null;
-  const currentQuad = currentArea?.quadrants[`${game.universe.currentCol}${game.universe.currentRow}`];
+
+  // Planeta actual donde se encuentra físicamente la nave
+  const currentQuad = game.universe.areas[game.universe.currentAreaId]?.quadrants[
+    `${game.universe.currentCol}${game.universe.currentRow}`
+  ];
   const currentPlanet = currentQuad?.planetCode ? PLANETS_BY_CODE[currentQuad.planetCode] : null;
 
+  // Modales de maniobras
   const [isManeuverModalOpen, setIsManeuverModalOpen] = useState(false);
   const [targetManeuver, setTargetManeuver] = useState<ManeuverType>('aterrizaje');
   const [isDockingModalOpen, setIsDockingModalOpen] = useState(false);
+
+  // Configurar cuadrante inexplorado
   const handleConfigureQuadrant = (col: string, row: number) => {
     const key = `${col}${row}`;
-    const result = configureQuadrant(game.universe, game.universe.currentAreaId, col, row);
+    const result = configureQuadrant(game.universe, viewedAreaId, col, row);
 
-    // Configurar consume 1 día y 5 SC
     const adv = advanceDays(game.date, 1);
     const logDetails = result.hadPlanet
-      ? `Configurado cuadrante ${key}: ¡Descubierto mundo ${result.planetDiscovered?.name} (código ${result.planetDiscovered?.code})!`
+      ? `Configurado cuadrante ${key}: ¡Descubierto mundo ${result.planetDiscovered?.name} (código #${result.planetDiscovered?.code})!`
       : `Configurado cuadrante ${key}: Espacio vacío sin mundos de interés.`;
 
     const updatedLog = [
@@ -61,16 +79,16 @@ export function SectorMapView({ game, onUpdateGame }: SectorMapViewProps) {
     });
   };
 
-  const handleTravelToSelected = () => {
+  // Hipersalto a cuadrante seleccionado (dentro del mismo sector)
+  const handleTravelToSelectedQuad = () => {
     if (!selectedQuad) return;
     if (game.company.ship.fuelCurrent < 1) {
       alert('¡Sin combustible suficiente para efectuar el hipersalto!');
       return;
     }
 
-    // Hipersalto consume 1 combustible y 1 día
     const adv = advanceDays(game.date, 1);
-    const nextUniv = travelToQuadrant(game.universe, selectedQuad.col, selectedQuad.row);
+    const nextUniv = travelToQuadrant(game.universe, selectedQuad.col, selectedQuad.row, viewedAreaId);
 
     const updatedLog = [
       {
@@ -78,7 +96,7 @@ export function SectorMapView({ game, onUpdateGame }: SectorMapViewProps) {
         gameDate: adv.newDate,
         category: 'nave' as const,
         action: 'Hipersalto Interestelar',
-        details: `Viaje a cuadrante ${selectedQuad.col}${selectedQuad.row} (Estación de Hiperdisparo). Combustible -1.`,
+        details: `Viaje a cuadrante ${selectedQuad.col}${selectedQuad.row}, Área ${viewedAreaId} (Estación de Hiperdisparo). Combustible -1.`,
         timestamp: new Date().toISOString()
       },
       ...game.auditLog
@@ -99,6 +117,48 @@ export function SectorMapView({ game, onUpdateGame }: SectorMapViewProps) {
     });
   };
 
+  // Hipersalto a sector adyacente (+1 o -1)
+  const handleJumpToAdjacentSector = (targetAreaId: number) => {
+    if (game.company.ship.fuelCurrent < 1) {
+      alert('¡Sin combustible suficiente para efectuar el hipersalto intersectorial!');
+      return;
+    }
+
+    const adv = advanceDays(game.date, 1);
+    // Salto al primer cuadrante por defecto del nuevo sector (ej. A1)
+    const nextUniv = travelToQuadrant(game.universe, 'A', 1, targetAreaId);
+
+    const updatedLog = [
+      {
+        id: `log_sector_jump_${Date.now()}`,
+        gameDate: adv.newDate,
+        category: 'nave' as const,
+        action: 'Hipersalto Intersectorial',
+        details: `Hipersalto de Área ${game.universe.currentAreaId} a Área ${targetAreaId}. Combustible -1.`,
+        timestamp: new Date().toISOString()
+      },
+      ...game.auditLog
+    ];
+
+    onUpdateGame({
+      ...game,
+      date: adv.newDate,
+      universe: nextUniv,
+      company: {
+        ...game.company,
+        ship: {
+          ...game.company.ship,
+          fuelCurrent: game.company.ship.fuelCurrent - 1
+        }
+      },
+      auditLog: updatedLog
+    });
+
+    setViewedAreaId(targetAreaId);
+    setSelectedQuadKey('A1');
+  };
+
+  // Solicitar cambio de sub-localización de la nave (con maniobra reglamentaria)
   const handleRequestLocationChange = (loc: GameSave['universe']['currentLocation']) => {
     if (game.universe.currentLocation === loc) return;
 
@@ -131,215 +191,162 @@ export function SectorMapView({ game, onUpdateGame }: SectorMapViewProps) {
     }
   };
 
+  // Seleccionar un planeta descubierto de la lista para inspeccionarlo
+  const handleSelectDiscoveredPlanet = (planetCode: number) => {
+    if (!viewedArea) return;
+    for (const [key, q] of Object.entries(viewedArea.quadrants)) {
+      if (q.planetCode === planetCode) {
+        setSelectedQuadKey(key);
+        break;
+      }
+    }
+  };
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* Map Column */}
-      <div className="lg:col-span-2 bg-space-800 border border-space-700 rounded-2xl p-6 shadow-xl">
-        <div className="flex items-center justify-between pb-4 mb-4 border-b border-space-700">
-          <div>
-            <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-              <Compass className="w-5 h-5 text-space-accent" />
-              <span>Mapa del Área {game.universe.currentAreaId}</span>
-            </h2>
-            <p className="text-xs text-slate-400">
-              Densidad de mundos: <span className="text-space-accent font-semibold">{currentArea?.density}</span> (
-              {currentArea?.discoveredPlanets.length} mundos descubiertos)
-            </p>
+    <div className="space-y-6">
+      
+      {/* 1. Header con Navegación entre Sectores 2-12 y Planeta de Origen */}
+      <SectorNavigationHeader
+        currentAreaId={game.universe.currentAreaId}
+        viewedAreaId={viewedAreaId}
+        universe={game.universe}
+        fuelCurrent={game.company.ship.fuelCurrent}
+        onViewAreaChange={setViewedAreaId}
+        onJumpToSector={handleJumpToAdjacentSector}
+      />
+
+      {/* 2. Barra de Posición y Maniobras de la Nave */}
+      {currentPlanet && (
+        <div className="p-4 bg-space-800 border border-space-700 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-lg">
+          <div className="flex items-center gap-2 text-xs">
+            <MapPin className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span className="text-slate-300">
+              Posición actual de la nave en <strong>{currentPlanet.name}</strong> (#{currentPlanet.code}):
+            </span>
           </div>
 
-          <div className="flex items-center gap-2 text-xs font-mono bg-space-900 px-3 py-1.5 rounded-lg border border-space-700">
-            <Fuel className="w-4 h-4 text-amber-400" />
-            <span>Combustible: {game.company.ship.fuelCurrent} / {game.company.ship.fuelMax}</span>
-          </div>
-        </div>
-
-        {/* 6x6 Sector Grid */}
-        <div className="grid grid-cols-6 gap-2 max-w-lg mx-auto">
-          {ROWS.map(row => (
-            COLS.map(col => {
-              const key = `${col}${row}`;
-              const quad = currentArea?.quadrants[key];
-              const isCurrent = game.universe.currentCol === col && game.universe.currentRow === row;
-              const isSelected = selectedQuadKey === key;
-              const hasPlanet = quad?.planetCode !== null && quad?.planetCode !== undefined;
-              const isConfigured = quad?.isConfigured;
-
-              return (
-                <button
-                  key={key}
-                  onClick={() => setSelectedQuadKey(key)}
-                  className={`aspect-square rounded-xl p-2 flex flex-col justify-between items-center transition-all border ${
-                    isSelected
-                      ? 'ring-2 ring-space-accent border-space-accent bg-space-700/80 shadow-lg shadow-space-accent/20'
-                      : isCurrent
-                      ? 'border-emerald-500 bg-emerald-950/40 text-emerald-300'
-                      : isConfigured
-                      ? 'border-space-600 bg-space-900/60 hover:bg-space-700/40'
-                      : 'border-space-700/40 bg-space-900/20 opacity-60 hover:opacity-100'
-                  }`}
-                >
-                  <div className="w-full flex justify-between items-center text-[10px] font-mono text-slate-400">
-                    <span>{key}</span>
-                    {isCurrent && (
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" title="Posición actual" />
-                    )}
-                  </div>
-
-                  <div className="my-auto">
-                    {hasPlanet ? (
-                      <Globe className="w-5 h-5 text-sky-400" />
-                    ) : isConfigured ? (
-                      <span className="text-[10px] text-slate-500">Vacío</span>
-                    ) : (
-                      <span className="text-[11px] text-slate-600 font-mono">?</span>
-                    )}
-                  </div>
-
-                  <div className="text-[9px] text-slate-400 truncate max-w-full font-mono">
-                    {hasPlanet ? quad?.planetCode : isConfigured ? '-' : 'Incógnito'}
-                  </div>
-                </button>
-              );
-            })
-          ))}
-        </div>
-
-        {/* Ship Location in Planet Context */}
-        <div className="mt-6 pt-4 border-t border-space-700">
-          <span className="text-xs font-semibold text-slate-300 block mb-2">
-            Posición de la Astronave en el Cuadrante Actual:
-          </span>
           <div className="flex flex-wrap gap-2">
             {[
               { id: 'mundo', label: 'Superficie (Mundo)' },
               { id: 'espaciopuerto', label: 'Espaciopuerto' },
               { id: 'instalacion_orbital', label: 'Instalación Orbital' },
               { id: 'estacion_hiperdisparo', label: 'Estación de Hiperdisparo' }
-            ].map(loc => (
-              <button
-                key={loc.id}
-                type="button"
-                onClick={() => handleRequestLocationChange(loc.id as GameSave['universe']['currentLocation'])}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                  game.universe.currentLocation === loc.id
-                    ? 'bg-space-accent text-space-900 border-space-accent'
-                    : 'bg-space-900 text-slate-300 border-space-700 hover:bg-space-700'
-                }`}
-              >
-                {loc.label}
-              </button>
-            ))}
+            ].map(loc => {
+              const isCurrent = game.universe.currentLocation === loc.id;
+              return (
+                <button
+                  key={loc.id}
+                  type="button"
+                  onClick={() => handleRequestLocationChange(loc.id as GameSave['universe']['currentLocation'])}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                    isCurrent
+                      ? 'bg-space-accent text-space-950 border-space-accent shadow-sm'
+                      : 'bg-space-900 text-slate-300 border-space-700 hover:bg-space-700 hover:text-white'
+                  }`}
+                >
+                  {loc.label}
+                </button>
+              );
+            })}
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Quadrant Detail Column */}
-      <div className="bg-space-800 border border-space-700 rounded-2xl p-6 shadow-xl flex flex-col justify-between">
-        <div>
-          <div className="flex items-center justify-between pb-3 mb-3 border-b border-space-700">
-            <h3 className="text-md font-bold text-slate-100 flex items-center gap-2">
-              <Radio className="w-4 h-4 text-space-accent" />
-              <span>Cuadrante {selectedQuadKey}</span>
-            </h3>
-            <span className="text-xs font-mono px-2 py-0.5 bg-space-900 text-slate-300 rounded border border-space-700">
-              {selectedQuad?.isConfigured ? 'Configurado' : 'Sin Explorar'}
-            </span>
-          </div>
+      {/* 3. Contenedor Principal: Mapa a la Izquierda y Fichas Detalladas a la Derecha */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        {/* Columna Izquierda: Mapa 6x6 con Fondo Estrellado */}
+        <div className="lg:col-span-7 space-y-4">
+          <SectorGridMap
+            viewedArea={viewedArea}
+            viewedAreaId={viewedAreaId}
+            universe={game.universe}
+            selectedQuadKey={selectedQuadKey}
+            onSelectQuadrantKey={setSelectedQuadKey}
+          />
 
-          {selectedQuad?.isConfigured ? (
-            selectedPlanet ? (
-              <div className="space-y-3 text-xs">
-                <div>
-                  <span className="text-slate-400">Planeta:</span>
-                  <p className="text-base font-bold text-space-accent">{selectedPlanet.name}</p>
-                  <p className="text-[11px] text-slate-400 font-mono">Código #{selectedPlanet.code}</p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 bg-space-900/60 p-3 rounded-lg border border-space-700">
-                  <div>
-                    <span className="text-slate-400 block text-[10px] uppercase">Soporte Vital:</span>
-                    <span className="font-semibold text-slate-200">{selectedPlanet.life_support}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px] uppercase">Espaciopuerto:</span>
-                    <span className="font-semibold text-slate-200">{selectedPlanet.spaceport_quality}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px] uppercase">Combustible:</span>
-                    <span className="font-semibold text-slate-200">{selectedPlanet.fuel_density}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px] uppercase">Distancia Hiper:</span>
-                    <span className="font-semibold text-slate-200">{selectedPlanet.days_to_hyperspace} días</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px] uppercase">Pasajeros Máx:</span>
-                    <span className="font-semibold text-slate-200">{selectedPlanet.max_passengers}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px] uppercase">Convenio Spacegom:</span>
-                    <span className="font-semibold text-emerald-400">{selectedPlanet.convenio_spacegom ? 'Sí' : 'No'}</span>
-                  </div>
-                </div>
-
-                <div>
-                  <span className="text-slate-400 block text-[10px] uppercase mb-1">Instalaciones Orbitales:</span>
-                  <div className="flex flex-wrap gap-1">
-                    {selectedPlanet.orbital_cartography_center === 1 && (
-                      <span className="px-2 py-0.5 bg-space-700 text-sky-300 rounded text-[10px]">Cartografía</span>
-                    )}
-                    {selectedPlanet.orbital_supply_depot === 1 && (
-                      <span className="px-2 py-0.5 bg-space-700 text-amber-300 rounded text-[10px]">Suministros</span>
-                    )}
-                    {selectedPlanet.orbital_astro_academy === 1 && (
-                      <span className="px-2 py-0.5 bg-space-700 text-indigo-300 rounded text-[10px]">Academia</span>
-                    )}
-                    {selectedPlanet.orbital_hackers === 1 && (
-                      <span className="px-2 py-0.5 bg-space-700 text-rose-300 rounded text-[10px]">Piratas Inf.</span>
-                    )}
-                  </div>
-                </div>
+          {/* Botón de Hipersalto al Cuadrante Seleccionado */}
+          {selectedQuad && selectedQuadKey !== `${game.universe.currentCol}${game.universe.currentRow}` && (
+            <div className="p-4 bg-space-800 border border-space-700 rounded-2xl flex items-center justify-between gap-4 shadow-lg">
+              <div>
+                <span className="text-xs font-bold text-slate-200 block">
+                  Cuadrante Objetivo: {selectedQuadKey}
+                </span>
+                <span className="text-[11px] text-slate-400">
+                  {selectedQuad.isConfigured 
+                    ? (selectedPlanet ? `Mundo ${selectedPlanet.name} (#${selectedPlanet.code})` : 'Espacio vacío')
+                    : 'Sin explorar (requiere configurar al llegar)'}
+                </span>
               </div>
-            ) : (
-              <div className="text-center py-8 text-xs text-slate-400">
-                <Globe className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-                <p>Este cuadrante está configurado pero no contiene ningún planeta habitable ni estación orbital.</p>
-              </div>
-            )
-          ) : (
-            <div className="text-center py-6 text-xs text-slate-400">
-              <Radio className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-              <p className="mb-4">
-                El cuadrante está sin explorar. Tu ingeniero computacional puede configurarlo desde una Estación de Hiperdisparo o Centro Cartográfico.
-              </p>
+
               <button
-                onClick={() => selectedQuad && handleConfigureQuadrant(selectedQuad.col, selectedQuad.row)}
-                className="w-full py-2 bg-space-accent text-space-900 font-bold rounded-lg hover:bg-sky-400 transition-colors shadow"
+                type="button"
+                onClick={handleTravelToSelectedQuad}
+                disabled={game.company.ship.fuelCurrent < 1}
+                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold rounded-xl flex items-center gap-2 shadow-lg shadow-emerald-600/20 text-xs transition-colors"
               >
-                Configurar Cuadrante (1 día)
+                <Navigation className="w-4 h-4" />
+                <span>Hipersalto a {selectedQuadKey} (-1 comb, +1d)</span>
               </button>
             </div>
           )}
         </div>
 
-        {/* Action Button: Jump to Selected Quadrant */}
-        {selectedQuadKey !== `${game.universe.currentCol}${game.universe.currentRow}` && (
-          <div className="pt-4 border-t border-space-700 mt-4">
-            <button
-              onClick={handleTravelToSelected}
-              disabled={game.company.ship.fuelCurrent < 1}
-              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold rounded-lg flex items-center justify-center gap-2 shadow"
-            >
-              <Navigation className="w-4 h-4" />
-              <span>Efectuar Hipersalto a {selectedQuadKey}</span>
-            </button>
-            <span className="text-[10px] text-slate-500 text-center block mt-1">
-              Consume 1 combustible y 1 día de viaje
-            </span>
-          </div>
-        )}
+        {/* Columna Derecha: Ficha Exhaustiva del Planeta y Lista de Descubiertos */}
+        <div className="lg:col-span-5 space-y-4">
+          {/* Ficha Completa del Planeta Seleccionado */}
+          {selectedPlanet ? (
+            <PlanetFullCard
+              planet={selectedPlanet}
+              isOriginPlanet={game.universe.originPlanetCode === selectedPlanet.code}
+              isCurrentPlanet={game.universe.currentPlanetCode === selectedPlanet.code}
+              titlePrefix={`Cuadrante ${selectedQuadKey}`}
+            />
+          ) : selectedQuad?.isConfigured ? (
+            /* Cuadrante configurado sin planeta */
+            <div className="bg-space-900 border border-space-800 rounded-2xl p-6 text-center space-y-2 shadow-xl">
+              <Globe className="w-8 h-8 text-slate-600 mx-auto" />
+              <h4 className="text-sm font-bold text-slate-200">Cuadrante {selectedQuadKey}: Espacio Vacío</h4>
+              <p className="text-xs text-slate-400 max-w-xs mx-auto">
+                Este cuadrante ha sido configurado pero no contiene ningún planeta habitable ni estación orbital.
+              </p>
+            </div>
+          ) : (
+            /* Cuadrante en niebla de guerra */
+            <div className="bg-space-900 border border-space-800 rounded-2xl p-6 text-center space-y-3 shadow-xl">
+              <Radio className="w-8 h-8 text-slate-600 mx-auto" />
+              <div>
+                <h4 className="text-sm font-bold text-slate-200">Cuadrante {selectedQuadKey} sin explorar</h4>
+                <p className="text-xs text-slate-400 mt-1">
+                  Oculto bajo la niebla de guerra espacial. Puedes enviar al ingeniero computacional para mapear el cuadrante.
+                </p>
+              </div>
+
+              {selectedQuad && (
+                <button
+                  type="button"
+                  onClick={() => handleConfigureQuadrant(selectedQuad.col, selectedQuad.row)}
+                  className="px-4 py-2 bg-space-accent text-space-950 font-bold rounded-xl hover:bg-sky-400 transition-colors shadow text-xs"
+                >
+                  Configurar Cuadrante (1 día)
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Panel de Consulta Rápida de Planetas Descubiertos en este Sector */}
+          <DiscoveredPlanetsPanel
+            discoveredCodes={viewedArea?.discoveredPlanets || []}
+            selectedPlanetCode={selectedPlanet?.code || null}
+            originPlanetCode={game.universe.originPlanetCode}
+            currentPlanetCode={game.universe.currentPlanetCode}
+            onSelectPlanetCode={handleSelectDiscoveredPlanet}
+          />
+        </div>
+
       </div>
-      {/* Modales de Maniobra de Vuelo y Amarre */}
+
+      {/* Modales de Maniobra de Vuelo y Amarre en Espaciopuerto */}
       {currentPlanet && (
         <>
           <FlightManeuverModal
@@ -360,6 +367,7 @@ export function SectorMapView({ game, onUpdateGame }: SectorMapViewProps) {
           />
         </>
       )}
+
     </div>
   );
 }

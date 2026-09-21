@@ -61,4 +61,8 @@ export interface UniverseState {
   areas: Record<number, SectorArea>;
   usedPlanetCodes: number[]; // across the whole game
   passengersTakenInCurrentVisit?: boolean;
+  originPlanetCode?: number;
+  originAreaId?: number;
+  originCol?: string;
+  originRow?: number;
 }
