@@ -24,23 +24,29 @@ interface SetupWizardProps {
 
 type Step = 'empresa' | 'ubicacion' | 'planeta' | 'tripulacion';
 
-const COLS = ['A', 'B', 'C', 'D', 'E', 'F'];
-
 export function SetupWizard({ onComplete, onCancel }: SetupWizardProps) {
   const [currentStep, setCurrentStep] = useState<Step>('empresa');
 
-  // --- PASO 1: Empresa, Nave, Dificultad ---
+  // --- PASO 1: Empresa, Nave, Dificultad (valores fijos oficiales del tutorial por defecto) ---
   const [saveName, setSaveName] = useState('Mi Campaña Spacegom');
   const [difficulty, setDifficulty] = useState<'facil' | 'normal' | 'dificil'>('normal');
-  const [companyName, setCompanyName] = useState(() => getRandomItem(COMPANY_NAMES));
-  const [shipName, setShipName] = useState(() => getRandomItem(SHIP_NAMES));
+  const [companyName, setCompanyName] = useState('Starblack');
+  const [shipName, setShipName] = useState('Astronave I');
 
   // --- PASO 2: Área y Sector ---
-  const [areaRoll, setAreaRoll] = useState<number>(() => rollDice({ diceCount: 2 }).sum);
-  const [densityRoll, setDensityRoll] = useState<number>(() => rollDice({ diceCount: 2 }).sum);
+  const [areaDice, setAreaDice] = useState<[number, number]>(() => {
+    const r = rollDice({ diceCount: 2 });
+    return [r.rolls[0], r.rolls[1]];
+  });
+  const [densityDice, setDensityDice] = useState<[number, number]>(() => {
+    const r = rollDice({ diceCount: 2 });
+    return [r.rolls[0], r.rolls[1]];
+  });
   const [startCol, setStartCol] = useState<string>('C');
   const [startRow, setStartRow] = useState<number>(4);
 
+  const areaRoll = areaDice[0] + areaDice[1];
+  const densityRoll = densityDice[0] + densityDice[1];
   const density: 'Baja' | 'Media' | 'Alta' = useMemo(() => {
     if (densityRoll <= 4) return 'Baja';
     if (densityRoll <= 9) return 'Media';
@@ -49,10 +55,8 @@ export function SetupWizard({ onComplete, onCancel }: SetupWizardProps) {
 
   // --- PASO 3: Planeta de Origen ---
   const [dice3D6, setDice3D6] = useState<[number, number, number]>(() => {
-    const d1 = rollDice({ diceCount: 1 }).rolls[0];
-    const d2 = rollDice({ diceCount: 1 }).rolls[0];
-    const d3 = rollDice({ diceCount: 1 }).rolls[0];
-    return [d1, d2, d3];
+    const r = rollDice({ diceCount: 3 });
+    return [r.rolls[0], r.rolls[1], r.rolls[2]];
   });
 
   const rawRolledCode = dice3D6[0] * 100 + dice3D6[1] * 10 + dice3D6[2];
@@ -70,31 +74,15 @@ export function SetupWizard({ onComplete, onCancel }: SetupWizardProps) {
 
   const [planetForm, setPlanetForm] = useState<PlanetData>(activePlanet);
 
-  // --- PASO 4: Tripulación Inicial ---
+  // --- PASO 4: Tripulación Inicial (oficial fija del tutorial por defecto) ---
   const [crewNames, setCrewNames] = useState<string[]>(() => {
-    return getUniqueRandomItems(PERSONNEL_NAMES, 11);
+    return INITIAL_CREW_ROSTER_TEMPLATE.map(t => t.defaultName);
   });
-
   const totalCrewSalary = useMemo(() => {
     return INITIAL_CREW_ROSTER_TEMPLATE.reduce((sum, item) => sum + item.monthlySalary, 0);
   }, []);
 
-  // Handlers para tiradas y shuffle
-  const handleRollArea = () => setAreaRoll(rollDice({ diceCount: 2 }).sum);
-  const handleRollDensity = () => setDensityRoll(rollDice({ diceCount: 2 }).sum);
-  const handleRollQuadrant = () => {
-    const cRoll = rollDice({ diceCount: 1 }).rolls[0];
-    const rRoll = rollDice({ diceCount: 1 }).rolls[0];
-    setStartCol(COLS[cRoll - 1]);
-    setStartRow(rRoll);
-  };
-  const handleRollPlanet = () => {
-    const d1 = rollDice({ diceCount: 1 }).rolls[0];
-    const d2 = rollDice({ diceCount: 1 }).rolls[0];
-    const d3 = rollDice({ diceCount: 1 }).rolls[0];
-    setDice3D6([d1, d2, d3]);
-  };
-
+  // Handlers para shuffle
   const handleShuffleCompanyName = () => setCompanyName(getRandomItem(COMPANY_NAMES));
   const handleShuffleShipName = () => setShipName(getRandomItem(SHIP_NAMES));
   const handleShuffleCrewNames = () => setCrewNames(getUniqueRandomItems(PERSONNEL_NAMES, 11));
@@ -200,14 +188,16 @@ export function SetupWizard({ onComplete, onCancel }: SetupWizardProps) {
 
           {currentStep === 'ubicacion' && (
             <SetupStepLocation
+              difficulty={difficulty}
+              areaDice={areaDice}
+              densityDice={densityDice}
               areaRoll={areaRoll}
               densityRoll={densityRoll}
               density={density}
               startCol={startCol}
               startRow={startRow}
-              onRollArea={handleRollArea}
-              onRollDensity={handleRollDensity}
-              onRollQuadrant={handleRollQuadrant}
+              onAreaDiceChange={setAreaDice}
+              onDensityDiceChange={setDensityDice}
               onSelectQuadrant={(c, r) => {
                 setStartCol(c);
                 setStartRow(r);
@@ -217,12 +207,13 @@ export function SetupWizard({ onComplete, onCancel }: SetupWizardProps) {
 
           {currentStep === 'planeta' && (
             <SetupStepPlanet
+              difficulty={difficulty}
               dice3D6={dice3D6}
               rawRolledCode={rawRolledCode}
               activePlanet={activePlanet}
               activeValidation={activeValidation}
               consecutiveDetails={consecutiveDetails}
-              onRollPlanet={handleRollPlanet}
+              onDice3D6Change={setDice3D6}
               onOpenEditPlanet={handleOpenEditPlanet}
             />
           )}

@@ -46,7 +46,7 @@ export function SetupStepCompany({
             type="text"
             value={saveName}
             onChange={e => setSaveName(e.target.value)}
-            className="w-full bg-space-950 border border-space-700 rounded-lg px-3 py-2.5 text-slate-100 text-sm focus:outline-none focus:border-space-accent"
+            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2.5 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:border-space-accent focus:ring-1 focus:ring-space-accent"
             required
           />
         </div>
@@ -69,7 +69,7 @@ export function SetupStepCompany({
             type="text"
             value={companyName}
             onChange={e => setCompanyName(e.target.value)}
-            className="w-full bg-space-950 border border-space-700 rounded-lg px-3 py-2.5 text-slate-100 text-sm focus:outline-none focus:border-space-accent"
+            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2.5 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:border-space-accent focus:ring-1 focus:ring-space-accent"
             required
           />
         </div>
@@ -92,7 +92,7 @@ export function SetupStepCompany({
             type="text"
             value={shipName}
             onChange={e => setShipName(e.target.value)}
-            className="w-full bg-space-950 border border-space-700 rounded-lg px-3 py-2.5 text-slate-100 text-sm focus:outline-none focus:border-space-accent"
+            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2.5 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:border-space-accent focus:ring-1 focus:ring-space-accent"
             required
           />
         </div>

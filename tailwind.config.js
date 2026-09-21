@@ -8,6 +8,7 @@ export default {
     extend: {
       colors: {
         space: {
+          950: '#060911',
           900: '#0a0d14',
           800: '#111726',
           700: '#1b233a',

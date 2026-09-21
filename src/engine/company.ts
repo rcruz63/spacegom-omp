@@ -90,14 +90,14 @@ export const INITIAL_CREW_ROSTER_TEMPLATE = [
   { position: 'Director gerente', monthlySalary: 20, experience: 'veterano' as ExperienceLevel, morale: 'alta' as MoraleLevel, defaultName: 'Widaker Farq' },
   { position: 'Comandante de hipersaltos', monthlySalary: 15, experience: 'veterano' as ExperienceLevel, morale: 'media' as MoraleLevel, defaultName: 'Samantha Warm' },
   { position: 'Ingeniero computacional', monthlySalary: 4, experience: 'novato' as ExperienceLevel, morale: 'baja' as MoraleLevel, defaultName: 'Thomas Muller' },
-  { position: 'Ingeniero de astronavegación', monthlySalary: 8, experience: 'estandar' as ExperienceLevel, morale: 'media' as MoraleLevel, defaultName: 'Walter Lopez' },
-  { position: 'Técnico de repostaje y análisis', monthlySalary: 8, experience: 'estandar' as ExperienceLevel, morale: 'media' as MoraleLevel, defaultName: 'Jeffrey Cook' },
-  { position: 'Piloto', monthlySalary: 10, experience: 'veterano' as ExperienceLevel, morale: 'media' as MoraleLevel, defaultName: 'Danielle Rivers' },
-  { position: 'Operario de logística y almacén', monthlySalary: 1, experience: 'estandar' as ExperienceLevel, morale: 'media' as MoraleLevel, defaultName: 'Isaac Peterson' },
-  { position: 'Contabilidad y burocracia', monthlySalary: 3, experience: 'estandar' as ExperienceLevel, morale: 'media' as MoraleLevel, defaultName: 'Katherine Smith' },
-  { position: 'Suministros de mantenimiento', monthlySalary: 3, experience: 'estandar' as ExperienceLevel, morale: 'media' as MoraleLevel, defaultName: 'Jason Wilson' },
-  { position: 'Cocinero', monthlySalary: 3, experience: 'estandar' as ExperienceLevel, morale: 'alta' as MoraleLevel, defaultName: 'Sam Hernández' },
-  { position: 'Asistente doméstico', monthlySalary: 1, experience: 'novato' as ExperienceLevel, morale: 'media' as MoraleLevel, defaultName: 'Alexandra Adams' }
+  { position: 'Ingeniero de astronavegación', monthlySalary: 8, experience: 'novato' as ExperienceLevel, morale: 'baja' as MoraleLevel, defaultName: 'Walter Lopez' },
+  { position: 'Técnico de repostaje y análisis', monthlySalary: 8, experience: 'estandar' as ExperienceLevel, morale: 'baja' as MoraleLevel, defaultName: 'Jeffrey Cook' },
+  { position: 'Piloto', monthlySalary: 10, experience: 'estandar' as ExperienceLevel, morale: 'baja' as MoraleLevel, defaultName: 'Danielle Rivers' },
+  { position: 'Operario de logística y almacén', monthlySalary: 1, experience: 'novato' as ExperienceLevel, morale: 'baja' as MoraleLevel, defaultName: 'Isaac Peterson' },
+  { position: 'Responsable de contabilidad y burocracia', monthlySalary: 3, experience: 'estandar' as ExperienceLevel, morale: 'media' as MoraleLevel, defaultName: 'Katherine Smith' },
+  { position: 'Responsable de suministros de manutención', monthlySalary: 3, experience: 'estandar' as ExperienceLevel, morale: 'baja' as MoraleLevel, defaultName: 'Jason Wilson' },
+  { position: 'Cocinero', monthlySalary: 3, experience: 'estandar' as ExperienceLevel, morale: 'media' as MoraleLevel, defaultName: 'Sam Hernández' },
+  { position: 'Asistente doméstico', monthlySalary: 1, experience: 'estandar' as ExperienceLevel, morale: 'baja' as MoraleLevel, defaultName: 'Alexandra Adams' }
 ];
 
 export function generateInitialCrew(crewNames?: string[]): Employee[] {

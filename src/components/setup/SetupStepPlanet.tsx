@@ -1,83 +1,74 @@
 import { PlanetData } from '../../types/universe';
 import { PlanetValidationResult, ConsecutiveSearchDetails } from '../../engine/universe';
-import { Globe, Dices, AlertTriangle, CheckCircle2, XCircle, Edit3 } from 'lucide-react';
+import { DiceRollerVisual } from '../common/DiceRollerVisual';
+import { Globe, AlertTriangle, CheckCircle2, XCircle, Edit3 } from 'lucide-react';
 
 interface SetupStepPlanetProps {
+  difficulty: 'facil' | 'normal' | 'dificil';
   dice3D6: [number, number, number];
   rawRolledCode: number;
   activePlanet: PlanetData;
   activeValidation: PlanetValidationResult;
   consecutiveDetails: ConsecutiveSearchDetails;
-  onRollPlanet: () => void;
+  onDice3D6Change: (dice: [number, number, number]) => void;
   onOpenEditPlanet: () => void;
 }
 
 export function SetupStepPlanet({
+  difficulty,
   dice3D6,
   rawRolledCode,
   activePlanet,
   activeValidation,
   consecutiveDetails,
-  onRollPlanet,
+  onDice3D6Change,
   onOpenEditPlanet
 }: SetupStepPlanetProps) {
+  const canReroll = difficulty === 'facil';
+
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <h3 className="text-base font-bold text-slate-100 mb-1 flex items-center gap-2">
-            <Globe className="w-5 h-5 text-space-accent" />
-            Planeta de Origen: Tirada 3D6 y Validación Automática
-          </h3>
-          <p className="text-xs text-slate-400">
-            Se lanza 3d6 (111-666) para determinar el código. Si no es apto, la búsqueda consecutiva encuentra el siguiente planeta reglamentario.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onRollPlanet}
-            className="flex items-center gap-2 px-3 py-2 bg-space-accent text-space-950 font-bold rounded-lg text-xs hover:bg-sky-400 transition-colors shadow"
-          >
-            <Dices className="w-4 h-4" />
-            <span>Lanzar 3D6</span>
-          </button>
-        </div>
+      <div>
+        <h3 className="text-base font-bold text-slate-100 mb-1 flex items-center gap-2">
+          <Globe className="w-5 h-5 text-space-accent" />
+          Planeta de Origen: Tirada 3D6 y Validación Automática
+        </h3>
+        <p className="text-xs text-slate-400">
+          Se lanza 3d6 (111-666) para determinar el código. Si no es apto, la búsqueda consecutiva encuentra el siguiente planeta reglamentario.
+        </p>
       </div>
 
-      {/* Resultado de los dados */}
-      <div className="p-4 bg-space-950 border border-space-800 rounded-xl flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <span className="text-xs uppercase font-semibold text-slate-400">
-            Dados 3D6:
-          </span>
-          <div className="flex items-center gap-2">
-            {dice3D6.map((d, i) => (
-              <span key={i} className="w-8 h-8 rounded-lg bg-space-800 border border-space-600 flex items-center justify-center text-slate-100 font-bold text-sm shadow-inner">
-                {d}
-              </span>
-            ))}
-          </div>
-          <span className="text-sm font-semibold text-slate-400">
-            → Código Tirado: <strong className="text-slate-100 text-base">#{rawRolledCode}</strong>
-          </span>
-        </div>
+      {/* Tirador Visual 3D6 */}
+      <DiceRollerVisual
+        diceCount={3}
+        values={dice3D6}
+        title="Tirada de Código de Planeta (3D6: 111-666)"
+        subtitle="Cada dado determina un dígito: Centenas, Decenas y Unidades"
+        resultLabel="Código Obtenido"
+        resultValue={`#${rawRolledCode}`}
+        canReroll={canReroll}
+        blockedMessage="En dificultad Normal/Difícil no está permitido relanzar el Planeta de Origen."
+        onRollComplete={vals => onDice3D6Change([vals[0], vals[1], vals[2]])}
+        onManualChange={vals => onDice3D6Change([vals[0], vals[1], vals[2]])}
+      />
 
-        {consecutiveDetails.stepsCount > 0 ? (
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-950/40 border border-amber-800/60 rounded-lg text-xs text-amber-300">
-            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+      {/* Alerta de búsqueda consecutiva o validez */}
+      {consecutiveDetails.stepsCount > 0 ? (
+        <div className="p-3.5 bg-amber-950/40 border border-amber-800/60 rounded-xl text-xs text-amber-300 flex items-center gap-2.5">
+          <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+          <div>
+            <strong className="block font-bold">Código #{rawRolledCode} no apto para inicio.</strong>
             <span>
-              Código #{rawRolledCode} no apto. <strong>Búsqueda Consecutiva:</strong> asignado #{activePlanet.code} (+{consecutiveDetails.stepsCount} pasos).
+              Búsqueda Consecutiva Automática ({rawRolledCode} → ...): asignado planeta reglamentario <strong>#{activePlanet.code} ({activePlanet.name})</strong> tras {consecutiveDetails.stepsCount} pasos.
             </span>
           </div>
-        ) : (
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-950/40 border border-emerald-800/60 rounded-lg text-xs text-emerald-300">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>El planeta sacado #{rawRolledCode} cumple directamente todos los requisitos.</span>
-          </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="p-3 bg-emerald-950/40 border border-emerald-800/60 rounded-xl text-xs text-emerald-300 flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>El planeta sacado #{rawRolledCode} cumple directamente todos los requisitos de inicio.</span>
+        </div>
+      )}
 
       {/* Tarjeta del Planeta Seleccionado */}
       <div className="p-5 bg-space-950 border border-space-700 rounded-xl">
@@ -148,7 +139,7 @@ export function SetupStepPlanet({
           </div>
         </div>
 
-        {/* Si hubo salto consecutivo, mostrar trazabilidad */}
+        {/* Trazabilidad de descarte si hubo salto */}
         {consecutiveDetails.stepsCount > 0 && (
           <div className="mt-4 pt-3 border-t border-space-800/80 text-xs text-slate-400">
             <span className="font-semibold text-slate-300">Trazabilidad de descarte: </span>

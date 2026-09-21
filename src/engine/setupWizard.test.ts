@@ -44,8 +44,8 @@ describe('Game Setup Engine & Rules Verification', () => {
       expect(positions).toContain('Comandante de hipersaltos');
       expect(positions).toContain('Piloto');
       expect(positions).toContain('Ingeniero computacional');
-      expect(positions).toContain('Contabilidad y burocracia');
-      expect(positions).toContain('Suministros de mantenimiento');
+      expect(positions).toContain('Responsable de contabilidad y burocracia');
+      expect(positions).toContain('Responsable de suministros de manutención');
       expect(positions).toContain('Cocinero');
       expect(positions).toContain('Asistente doméstico');
     });

@@ -48,15 +48,15 @@ describe('Flight Maneuvers & Pilot Navigation Engine', () => {
     it('updates pilot morale on high roll (>= 10) and low roll (<= 4)', () => {
       let comp = createInitialCompany();
       const pilot = comp.employees.find(e => e.position.toLowerCase().includes('piloto'))!;
-      expect(pilot.morale).toBe('media');
+      expect(pilot.morale).toBe('baja');
 
-      // High roll boosts morale
+      // High roll boosts morale from baja to media
       const resHigh = executePilotManeuver(comp, 10);
       const pilotAfterHigh = resHigh.nextCompany.employees.find(e => e.id === pilot.id)!;
-      expect(pilotAfterHigh.morale).toBe('alta');
+      expect(pilotAfterHigh.morale).toBe('media');
 
-      // Low roll decreases morale
-      const resLow = executePilotManeuver(comp, 3, false, 2);
+      // Low roll decreases morale from media to baja
+      const resLow = executePilotManeuver(resHigh.nextCompany, 3, false, 2);
       const pilotAfterLow = resLow.nextCompany.employees.find(e => e.id === pilot.id)!;
       expect(pilotAfterLow.morale).toBe('baja');
     });
