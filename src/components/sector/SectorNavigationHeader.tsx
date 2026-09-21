@@ -34,10 +34,9 @@ export function SectorNavigationHeader({
   const isShipInViewedArea = currentAreaId === viewedAreaId;
   const isExplored = Boolean(viewedArea);
 
-  // Datos del Planeta de Origen
-  const originPlanetCode = universe.originPlanetCode;
+  // Datos del Planeta de Origen con fallback seguro
+  const originPlanetCode = universe.originPlanetCode || (universe.usedPlanetCodes && universe.usedPlanetCodes[0]) || null;
   const originPlanet = originPlanetCode ? PLANETS_BY_CODE[originPlanetCode] : null;
-
   // Comprobar si se puede efectuar hipersalto al sector visualizado (debe ser adyacente +-1 y la nave en estación de hiperdisparo)
   const isAdjacent = Math.abs(viewedAreaId - currentAreaId) === 1;
   const isAtHyperspace = universe.currentLocation === 'estacion_hiperdisparo';

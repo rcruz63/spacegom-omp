@@ -28,7 +28,7 @@ export function SectorGridMap({
   onSelectQuadrantKey
 }: SectorGridMapProps) {
   const isShipInThisArea = universe.currentAreaId === viewedAreaId;
-
+  const effectiveOriginCode = universe.originPlanetCode || (universe.usedPlanetCodes && universe.usedPlanetCodes[0]) || null;
   const getLocationBadge = (loc: UniverseState['currentLocation']) => {
     switch (loc) {
       case 'mundo': return { label: 'Mundo', bg: 'bg-emerald-950 text-emerald-300 border-emerald-700' };
@@ -125,7 +125,7 @@ export function SectorGridMap({
 
                   const isSelected = selectedQuadKey === quadKey;
                   const isShipHere = isShipInThisArea && universe.currentCol === col && universe.currentRow === row;
-                  const isOriginPlanet = planet && universe.originPlanetCode === planet.code;
+                  const isOriginPlanet = planet && effectiveOriginCode === planet.code;
                   const isConfigured = quad?.isConfigured;
 
                   return (
@@ -136,11 +136,15 @@ export function SectorGridMap({
                       className={`w-20 h-20 rounded-xl p-1.5 transition-all flex flex-col justify-between text-left relative overflow-hidden group ${
                         isSelected 
                           ? 'ring-2 ring-space-accent shadow-lg shadow-space-accent/25 z-20 scale-105 bg-space-800/90 border-space-accent'
-                          : isShipHere
-                            ? 'ring-1 ring-emerald-400 bg-space-900/90 border-emerald-700/80'
-                            : isConfigured
-                              ? 'bg-space-900/80 border border-space-700/70 hover:border-space-500 hover:bg-space-800/60'
-                              : 'bg-gradient-to-br from-slate-200/30 via-zinc-300/20 to-slate-400/25 backdrop-blur-md border border-slate-400/40 hover:from-slate-200/40 hover:to-slate-300/35 hover:border-slate-300/60 shadow-inner'
+                          : isShipHere && isOriginPlanet
+                            ? 'ring-2 ring-amber-400 bg-space-900/95 border-2 border-emerald-500 shadow-lg shadow-amber-400/20'
+                            : isShipHere
+                              ? 'ring-1 ring-emerald-400 bg-space-900/90 border-emerald-700/80'
+                              : isOriginPlanet
+                                ? 'ring-2 ring-amber-400/80 bg-amber-950/20 border-2 border-amber-500/80 shadow-md shadow-amber-500/10'
+                                : isConfigured
+                                  ? 'bg-space-900/80 border border-space-700/70 hover:border-space-500 hover:bg-space-800/60'
+                                  : 'bg-gradient-to-br from-slate-200/30 via-zinc-300/20 to-slate-400/25 backdrop-blur-md border border-slate-400/40 hover:from-slate-200/40 hover:to-slate-300/35 hover:border-slate-300/60 shadow-inner'
                       }`}
                     >
                       {/* NIEBLA DE GUERRA (Color niebla / blanco sucio / gris claro sin texto) */}
@@ -165,8 +169,12 @@ export function SectorGridMap({
                             </span>
 
                             {isOriginPlanet && (
-                              <span title="Planeta Natal / Base de Origen">
-                                <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400 drop-shadow" />
+                              <span 
+                                className="px-1 py-0.2 rounded bg-amber-950 border border-amber-500 text-amber-300 font-black text-[8px] flex items-center gap-0.5 shadow-sm"
+                                title="Planeta Natal / Base de Origen"
+                              >
+                                <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
+                                <span>BASE</span>
                               </span>
                             )}
                           </div>
@@ -177,7 +185,7 @@ export function SectorGridMap({
                               <>
                                 <div className={`w-7 h-7 rounded-full flex items-center justify-center shadow-md relative ${
                                   isOriginPlanet 
-                                    ? 'bg-amber-950 border-2 border-amber-400 text-amber-300' 
+                                    ? 'bg-amber-950 border-2 border-amber-400 text-amber-300 ring-2 ring-amber-400/50 shadow-amber-400/20' 
                                     : 'bg-sky-950 border border-sky-400 text-space-accent'
                                 }`}>
                                   <Globe className="w-4 h-4" />
@@ -195,10 +203,14 @@ export function SectorGridMap({
 
                           {/* Indicador de la Astronave en la Celda */}
                           {isShipHere && (
-                            <div className="absolute inset-x-1 bottom-1 flex items-center justify-center gap-1 py-0.5 rounded bg-emerald-950/90 border border-emerald-600/80 shadow-md">
+                            <div className={`absolute inset-x-1 bottom-1 flex items-center justify-center gap-1 py-0.5 rounded shadow-md ${
+                              isOriginPlanet 
+                                ? 'bg-gradient-to-r from-emerald-950 to-amber-950 border border-emerald-400 text-emerald-200' 
+                                : 'bg-emerald-950/90 border border-emerald-600/80 text-emerald-200'
+                            }`}>
                               <Rocket className="w-3 h-3 text-emerald-300 animate-pulse shrink-0" />
-                              <span className="text-[9px] font-bold text-emerald-200">
-                                {getLocationBadge(universe.currentLocation).label}
+                              <span className="text-[9px] font-bold">
+                                {isOriginPlanet ? `Base (${getLocationBadge(universe.currentLocation).label})` : getLocationBadge(universe.currentLocation).label}
                               </span>
                             </div>
                           )}

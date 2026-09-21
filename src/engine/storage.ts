@@ -12,7 +12,41 @@ export function loadAllSaves(): GameSave[] {
     if (typeof localStorage === 'undefined') return memorySaves;
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
-    return JSON.parse(raw);
+    const parsed: GameSave[] = JSON.parse(raw);
+
+    // Migrar partidas existentes para asegurar que siempre tengan originPlanetCode definido
+    return parsed.map(game => {
+      const u = game.universe;
+      if (u && !u.originPlanetCode && u.usedPlanetCodes && u.usedPlanetCodes.length > 0) {
+        const originCode = u.usedPlanetCodes[0];
+        let originAreaId = u.currentAreaId;
+        let originCol = u.currentCol;
+        let originRow = u.currentRow;
+
+        for (const [aIdStr, area] of Object.entries(u.areas || {})) {
+          for (const quad of Object.values(area.quadrants || {})) {
+            if (quad.planetCode === originCode) {
+              originAreaId = Number(aIdStr);
+              originCol = quad.col;
+              originRow = quad.row;
+              break;
+            }
+          }
+        }
+
+        return {
+          ...game,
+          universe: {
+            ...u,
+            originPlanetCode: originCode,
+            originAreaId,
+            originCol,
+            originRow
+          }
+        };
+      }
+      return game;
+    });
   } catch (err) {
     console.error('Error cargando partidas:', err);
     return [];

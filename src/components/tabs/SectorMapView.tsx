@@ -34,6 +34,8 @@ export function SectorMapView({ game, onUpdateGame }: SectorMapViewProps) {
     `${game.universe.currentCol}${game.universe.currentRow}`
   );
 
+  const effectiveOriginCode = game.universe.originPlanetCode || (game.universe.usedPlanetCodes && game.universe.usedPlanetCodes[0]) || null;
+
   const viewedArea = game.universe.areas[viewedAreaId];
   const selectedQuad = viewedArea?.quadrants[selectedQuadKey];
   const selectedPlanet = selectedQuad?.planetCode ? PLANETS_BY_CODE[selectedQuad.planetCode] : null;
@@ -298,7 +300,7 @@ export function SectorMapView({ game, onUpdateGame }: SectorMapViewProps) {
           {selectedPlanet ? (
             <PlanetFullCard
               planet={selectedPlanet}
-              isOriginPlanet={game.universe.originPlanetCode === selectedPlanet.code}
+              isOriginPlanet={effectiveOriginCode === selectedPlanet.code}
               isCurrentPlanet={game.universe.currentPlanetCode === selectedPlanet.code}
               titlePrefix={`Cuadrante ${selectedQuadKey}`}
             />
@@ -338,7 +340,7 @@ export function SectorMapView({ game, onUpdateGame }: SectorMapViewProps) {
           <DiscoveredPlanetsPanel
             discoveredCodes={viewedArea?.discoveredPlanets || []}
             selectedPlanetCode={selectedPlanet?.code || null}
-            originPlanetCode={game.universe.originPlanetCode}
+            originPlanetCode={effectiveOriginCode || undefined}
             currentPlanetCode={game.universe.currentPlanetCode}
             onSelectPlanetCode={handleSelectDiscoveredPlanet}
           />
