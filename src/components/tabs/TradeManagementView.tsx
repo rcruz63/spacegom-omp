@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { GameSave } from '../../types/game';
 import { ProductCode } from '../../types/trade';
 import { TRADE_PRODUCTS } from '../../data/tradeProducts';
-import { buyGoods, sellGoods, transportPassengers } from '../../engine/trade';
+import { buyGoods, sellGoods } from '../../engine/trade';
 import { PLANETS_BY_CODE } from '../../engine/universe';
-import { ShoppingCart, Users } from 'lucide-react';
+import { PassengerTransportModal } from '../PassengerTransportModal';
+import { ShoppingCart, Users, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 interface TradeManagementViewProps {
   game: GameSave;
@@ -17,10 +18,15 @@ export function TradeManagementView({ game, onUpdateGame }: TradeManagementViewP
   const [selectedProduct, setSelectedProduct] = useState<ProductCode>('INDU');
   const [buyUcnAmount, setBuyUcnAmount] = useState<number>(10);
   const [negotiationRoll, setNegotiationRoll] = useState<number>(8);
+  const [isPassengerModalOpen, setIsPassengerModalOpen] = useState(false);
+
+  const isAtWorldSurface = game.universe.currentLocation === 'mundo';
+  const hasTakenPassengersThisVisit = !!game.universe.passengersTakenInCurrentVisit;
+  const freeSeats = Math.max(0, game.company.ship.passengersMax - game.company.ship.passengersCurrent);
+  const canTransportPassengers = currentPlanet && isAtWorldSurface && !hasTakenPassengersThisVisit && freeSeats > 0;
 
   const availableSpace = game.company.ship.warehouseMax - game.company.ship.warehouseOccupied;
   const activeOrders = game.tradeOrders.filter(o => !o.isSold);
-
   const handleBuy = (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentPlanet) {
@@ -109,38 +115,7 @@ export function TradeManagementView({ game, onUpdateGame }: TradeManagementViewP
     }
   };
 
-  const handleTransportPassengers = () => {
-    if (!currentPlanet) {
-      alert('Debes estar en un planeta con aforo de viajeros');
-      return;
-    }
-
-    try {
-      const res = transportPassengers(currentPlanet, game.company, negotiationRoll);
-      const updatedLog = [
-        {
-          id: `log_pass_${Date.now()}`,
-          gameDate: game.date,
-          category: 'comercio' as const,
-          action: 'Transporte de Pasajeros',
-          details: res.logNotes.join(' '),
-          timestamp: new Date().toISOString()
-        },
-        ...game.auditLog
-      ];
-
-      onUpdateGame({
-        ...game,
-        company: res.nextCompany,
-        auditLog: updatedLog
-      });
-
-      alert(`¡Pasajeros embarcados! Se han cobrado ${res.income} SC por adelantado.`);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      alert(msg);
-    }
-  };
+  // El transporte de pasajeros ahora se gestiona a través de PassengerTransportModal
 
   return (
     <div className="space-y-6">
@@ -171,20 +146,40 @@ export function TradeManagementView({ game, onUpdateGame }: TradeManagementViewP
         <div className="bg-space-800 border border-space-700 rounded-xl p-5 flex flex-col justify-between">
           <div>
             <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">
-              Pasajeros en {currentPlanet ? currentPlanet.name : 'Sector'}
+              Aforo de Pasajeros en Nave
             </span>
-            <p className="text-xl font-bold text-emerald-400">
-              {currentPlanet ? `${currentPlanet.max_passengers} personas máx.` : 'No disponible'}
+            <p className="text-2xl font-black text-space-accent">
+              {game.company.ship.passengersCurrent} / {game.company.ship.passengersMax}
+            </p>
+            <p className="text-xs text-slate-400 mt-1">
+              {freeSeats} plazas libres · {currentPlanet ? `Demanda: ${currentPlanet.max_passengers || 6} prom.` : 'Sin mundo'}
             </p>
           </div>
+
           {currentPlanet && (
-            <button
-              onClick={handleTransportPassengers}
-              className="mt-2 w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg flex items-center justify-center gap-1.5 shadow"
-            >
-              <Users className="w-4 h-4" />
-              <span>Embarcar Pasajeros (Cobro Anticipado)</span>
-            </button>
+            <div className="mt-3">
+              {hasTakenPassengersThisVisit ? (
+                <div className="flex items-center gap-1.5 text-[11px] text-amber-400 bg-amber-950/40 p-2 rounded border border-amber-800/60">
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                  <span>Pasajeros ya captados en esta visita. Desembarcarán en el próximo planeta.</span>
+                </div>
+              ) : !isAtWorldSurface ? (
+                <div className="flex items-center gap-1.5 text-[11px] text-slate-400 bg-space-900/60 p-2 rounded border border-space-700">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span>Debes situarte en la superficie del MUNDO para captar viajeros.</span>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsPassengerModalOpen(true)}
+                  disabled={!canTransportPassengers}
+                  className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg flex items-center justify-center gap-1.5 shadow transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Users className="w-4 h-4" />
+                  <span>Transporte de Pasajeros</span>
+                </button>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -316,6 +311,16 @@ export function TradeManagementView({ game, onUpdateGame }: TradeManagementViewP
           </div>
         )}
       </div>
+      {/* Passenger Transport Modal */}
+      {currentPlanet && (
+        <PassengerTransportModal
+          isOpen={isPassengerModalOpen}
+          onClose={() => setIsPassengerModalOpen(false)}
+          game={game}
+          planet={currentPlanet}
+          onUpdateGame={onUpdateGame}
+        />
+      )}
     </div>
   );
 }

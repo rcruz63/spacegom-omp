@@ -60,4 +60,5 @@ export interface UniverseState {
   currentLocation: 'mundo' | 'espaciopuerto' | 'instalacion_orbital' | 'estacion_hiperdisparo' | 'en_transito_hiperdisparo';
   areas: Record<number, SectorArea>;
   usedPlanetCodes: number[]; // across the whole game
+  passengersTakenInCurrentVisit?: boolean;
 }

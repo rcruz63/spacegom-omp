@@ -1,4 +1,5 @@
 import { UniverseState, SectorArea } from '../types/universe';
+import { CompanyState } from '../types/company';
 import { createSectorArea, findFirstValidStartingPlanet, getQuadrantKey, PLANETS_BY_CODE } from './universe';
 import { rollDice } from './dice';
 
@@ -8,6 +9,7 @@ export interface StartingUniverseOptions {
   manualCol?: string;
   manualRow?: number;
   manualPlanetCode?: number;
+  customPlanets?: Record<number, any>;
 }
 
 export function createInitialUniverse(options: StartingUniverseOptions = {}): UniverseState {
@@ -34,7 +36,7 @@ export function createInitialUniverse(options: StartingUniverseOptions = {}): Un
     rollDice({ diceCount: 1 }).rolls[0]
   );
 
-  const startPlanet = findFirstValidStartingPlanet(candidateCode, []);
+  const startPlanet = findFirstValidStartingPlanet(candidateCode, [], options.customPlanets);
   const initialArea: SectorArea = createSectorArea(areaId, density);
   const startQuadKey = getQuadrantKey(startCol, startRow);
 
@@ -69,6 +71,25 @@ export function moveShipLocation(
   };
 }
 
+export function disembarkPassengers(company: CompanyState): {
+  nextCompany: CompanyState;
+  disembarkedCount: number;
+} {
+  const count = company.ship.passengersCurrent || 0;
+  if (count === 0) return { nextCompany: company, disembarkedCount: 0 };
+
+  return {
+    nextCompany: {
+      ...company,
+      ship: {
+        ...company.ship,
+        passengersCurrent: 0
+      }
+    },
+    disembarkedCount: count
+  };
+}
+
 export function travelToQuadrant(
   universe: UniverseState,
   targetCol: string,
@@ -97,7 +118,8 @@ export function travelToQuadrant(
     currentCol: targetCol,
     currentRow: targetRow,
     currentPlanetCode: quad?.planetCode || null,
-    currentLocation: 'estacion_hiperdisparo'
+    currentLocation: 'estacion_hiperdisparo',
+    passengersTakenInCurrentVisit: false
   };
 }
 

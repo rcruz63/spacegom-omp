@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { GameSave } from '../../types/game';
 import { configureQuadrant } from '../../engine/universe';
-import { travelToQuadrant, moveShipLocation } from '../../engine/navigation';
+import { travelToQuadrant, moveShipLocation, disembarkPassengers } from '../../engine/navigation';
 import { advanceDays } from '../../engine/calendar';
 import { PLANETS_BY_CODE } from '../../engine/universe';
 import { Compass, Globe, Navigation, Fuel, Radio } from 'lucide-react';
@@ -93,9 +93,30 @@ export function SectorMapView({ game, onUpdateGame }: SectorMapViewProps) {
 
   const handleChangeShipLocation = (loc: GameSave['universe']['currentLocation']) => {
     const nextUniv = moveShipLocation(game.universe, loc);
+    let nextComp = game.company;
+    let updatedLog = game.auditLog;
+
+    // Al llegar a la superficie de un MUNDO, los pasajeros desembarcan
+    if (loc === 'mundo' && game.company.ship.passengersCurrent > 0) {
+      const dis = disembarkPassengers(game.company);
+      nextComp = dis.nextCompany;
+      const currentPlanet = game.universe.currentPlanetCode ? PLANETS_BY_CODE[game.universe.currentPlanetCode] : null;
+      const newLog = {
+        id: `log_disembark_${Date.now()}`,
+        gameDate: game.date,
+        category: 'nave' as const,
+        action: 'Desembarco de Pasajeros',
+        details: `Llegada a la superficie de ${currentPlanet?.name || 'mundo'}: Desembarcan ${dis.disembarkedCount} pasajeros.`,
+        timestamp: new Date().toISOString()
+      };
+      updatedLog = [newLog, ...game.auditLog];
+    }
+
     onUpdateGame({
       ...game,
-      universe: nextUniv
+      universe: nextUniv,
+      company: nextComp,
+      auditLog: updatedLog
     });
   };
 
