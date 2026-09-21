@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { GameSave } from '../../types/game';
 import { configureQuadrant } from '../../engine/universe';
-import { travelToQuadrant, moveShipLocation, disembarkPassengers } from '../../engine/navigation';
+import { travelToQuadrant } from '../../engine/navigation';
+import { FlightManeuverModal } from '../navigation/FlightManeuverModal';
+import { SpaceportDockingModal } from '../spaceport/SpaceportDockingModal';
+import { ManeuverType } from '../../engine/flightManeuvers';
 import { advanceDays } from '../../engine/calendar';
 import { PLANETS_BY_CODE } from '../../engine/universe';
 import { Compass, Globe, Navigation, Fuel, Radio } from 'lucide-react';
@@ -22,7 +25,12 @@ export function SectorMapView({ game, onUpdateGame }: SectorMapViewProps) {
 
   const selectedQuad = currentArea?.quadrants[selectedQuadKey];
   const selectedPlanet = selectedQuad?.planetCode ? PLANETS_BY_CODE[selectedQuad.planetCode] : null;
+  const currentQuad = currentArea?.quadrants[`${game.universe.currentCol}${game.universe.currentRow}`];
+  const currentPlanet = currentQuad?.planetCode ? PLANETS_BY_CODE[currentQuad.planetCode] : null;
 
+  const [isManeuverModalOpen, setIsManeuverModalOpen] = useState(false);
+  const [targetManeuver, setTargetManeuver] = useState<ManeuverType>('aterrizaje');
+  const [isDockingModalOpen, setIsDockingModalOpen] = useState(false);
   const handleConfigureQuadrant = (col: string, row: number) => {
     const key = `${col}${row}`;
     const result = configureQuadrant(game.universe, game.universe.currentAreaId, col, row);
@@ -91,33 +99,36 @@ export function SectorMapView({ game, onUpdateGame }: SectorMapViewProps) {
     });
   };
 
-  const handleChangeShipLocation = (loc: GameSave['universe']['currentLocation']) => {
-    const nextUniv = moveShipLocation(game.universe, loc);
-    let nextComp = game.company;
-    let updatedLog = game.auditLog;
+  const handleRequestLocationChange = (loc: GameSave['universe']['currentLocation']) => {
+    if (game.universe.currentLocation === loc) return;
 
-    // Al llegar a la superficie de un MUNDO, los pasajeros desembarcan
-    if (loc === 'mundo' && game.company.ship.passengersCurrent > 0) {
-      const dis = disembarkPassengers(game.company);
-      nextComp = dis.nextCompany;
-      const currentPlanet = game.universe.currentPlanetCode ? PLANETS_BY_CODE[game.universe.currentPlanetCode] : null;
-      const newLog = {
-        id: `log_disembark_${Date.now()}`,
-        gameDate: game.date,
-        category: 'nave' as const,
-        action: 'Desembarco de Pasajeros',
-        details: `Llegada a la superficie de ${currentPlanet?.name || 'mundo'}: Desembarcan ${dis.disembarkedCount} pasajeros.`,
-        timestamp: new Date().toISOString()
-      };
-      updatedLog = [newLog, ...game.auditLog];
+    if (!currentPlanet) {
+      alert('No hay un planeta en este cuadrante para realizar maniobras orbitales o de superficie.');
+      return;
     }
 
-    onUpdateGame({
-      ...game,
-      universe: nextUniv,
-      company: nextComp,
-      auditLog: updatedLog
-    });
+    if (loc === 'espaciopuerto') {
+      setIsDockingModalOpen(true);
+      return;
+    }
+
+    if (loc === 'mundo') {
+      setTargetManeuver('aterrizaje');
+      setIsManeuverModalOpen(true);
+      return;
+    }
+
+    if (loc === 'instalacion_orbital') {
+      setTargetManeuver('amarre_orbital');
+      setIsManeuverModalOpen(true);
+      return;
+    }
+
+    if (loc === 'estacion_hiperdisparo') {
+      setTargetManeuver('transito_hiperdisparo');
+      setIsManeuverModalOpen(true);
+      return;
+    }
   };
 
   return (
@@ -207,7 +218,8 @@ export function SectorMapView({ game, onUpdateGame }: SectorMapViewProps) {
             ].map(loc => (
               <button
                 key={loc.id}
-                onClick={() => handleChangeShipLocation(loc.id as GameSave['universe']['currentLocation'])}
+                type="button"
+                onClick={() => handleRequestLocationChange(loc.id as GameSave['universe']['currentLocation'])}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
                   game.universe.currentLocation === loc.id
                     ? 'bg-space-accent text-space-900 border-space-accent'
@@ -327,6 +339,27 @@ export function SectorMapView({ game, onUpdateGame }: SectorMapViewProps) {
           </div>
         )}
       </div>
+      {/* Modales de Maniobra de Vuelo y Amarre */}
+      {currentPlanet && (
+        <>
+          <FlightManeuverModal
+            isOpen={isManeuverModalOpen}
+            onClose={() => setIsManeuverModalOpen(false)}
+            game={game}
+            planet={currentPlanet}
+            targetManeuver={targetManeuver}
+            onUpdateGame={onUpdateGame}
+          />
+
+          <SpaceportDockingModal
+            isOpen={isDockingModalOpen}
+            onClose={() => setIsDockingModalOpen(false)}
+            game={game}
+            planet={currentPlanet}
+            onUpdateGame={onUpdateGame}
+          />
+        </>
+      )}
     </div>
   );
 }
