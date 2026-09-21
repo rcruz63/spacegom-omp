@@ -4,6 +4,8 @@ import { CompanyState } from './company';
 import { TradeOrder } from './trade';
 import { GameEvent } from './events';
 import { GameMission } from './missions';
+import { DirectorTask } from './hiring';
+
 export interface GameSave {
   id: string;
   name: string;
@@ -15,6 +17,7 @@ export interface GameSave {
   tradeOrders: TradeOrder[];
   missions: GameMission[];
   events?: GameEvent[];
+  directorTasks?: DirectorTask[];
   auditLog: AuditLogEntry[];
 }
 

@@ -3,6 +3,7 @@ import { GameSave } from '../../types/game';
 import { calculateEmployeeDiceModifier, fireEmployee } from '../../engine/company';
 import { PLANETS_BY_CODE } from '../../engine/universe';
 import { HiringModal } from '../HiringModal';
+import { DirectorTaskQueuePanel } from '../company/DirectorTaskQueuePanel';
 import { Users, UserPlus, HeartPulse, Wrench, Clock } from 'lucide-react';
 
 interface CompanyManagementViewProps {
@@ -138,6 +139,12 @@ export function CompanyManagementView({ game, onUpdateGame }: CompanyManagementV
         game={game}
         currentPlanet={currentPlanet}
         onUpdateGame={onUpdateGame}
+      />
+      {/* Director Task Queue Panel */}
+      <DirectorTaskQueuePanel
+        game={game}
+        onUpdateGame={onUpdateGame}
+        onOpenHiringModal={() => setIsHiringOpen(true)}
       />
 
       {/* Roster Table */}

@@ -5,7 +5,7 @@ import { ExperienceLevel } from '../types/common';
 import { 
   POSITIONS_CATALOG, 
   getAvailablePositionsForPlanet, 
-  startHiringSearch 
+  enqueueHiringTask 
 } from '../engine/hiring';
 import { PERSONNEL_NAMES, getRandomItem, getUniqueRandomItems } from '../data/names';
 import { DiceRollerVisual } from './common/DiceRollerVisual';
@@ -118,18 +118,13 @@ export function HiringModal({
       return;
     }
 
-    if (director.isBusy) {
-      alert(`El Director Gerente está ocupado: ${director.busyReason}.`);
-      return;
-    }
-
     if (rawDiceSum === null) {
       alert('Debes lanzar o introducir los dados de tiempo de búsqueda.');
       return;
     }
 
     try {
-      const res = startHiringSearch(
+      const res = enqueueHiringTask(
         game,
         selectedPosition.title,
         experience,
@@ -397,14 +392,21 @@ export function HiringModal({
                 </button>
                 <button
                   type="submit"
-                  disabled={!director || director.isBusy || !isSearchDiceRolled}
-                  className="flex items-center gap-2 px-5 py-2 bg-space-accent text-space-950 font-bold rounded-lg hover:bg-sky-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-space-accent/10"
+                  disabled={!director || !isSearchDiceRolled}
+                  className={`flex items-center gap-2 px-5 py-2 font-bold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md ${
+                    director?.isBusy 
+                      ? 'bg-amber-500 hover:bg-amber-400 text-space-950 shadow-amber-500/15'
+                      : 'bg-space-accent hover:bg-sky-400 text-space-950 shadow-space-accent/10'
+                  }`}
                 >
                   <UserPlus className="w-4 h-4" />
-                  <span>Iniciar Búsqueda de Personal</span>
+                  <span>
+                    {director?.isBusy 
+                      ? `Encolar Búsqueda en Agenda (+${calculatedDays}d)` 
+                      : 'Iniciar Búsqueda de Personal'}
+                  </span>
                 </button>
               </div>
-
             </form>
           )}
 

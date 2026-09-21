@@ -3,6 +3,7 @@ import { Employee } from '../types/company';
 import { PlanetData } from '../types/universe';
 import { GameEvent } from '../types/events';
 import { GameSave } from '../types/game';
+import { DirectorTask } from '../types/hiring';
 import { rollDice, roll2D6 } from './dice';
 import { advanceDays } from './calendar';
 import { addEvent } from './eventQueue';
@@ -10,7 +11,7 @@ import { updateEmployeeAfterRoll } from './company';
 import { PERSONNEL_NAMES, getUniqueRandomItems } from '../data/names';
 import { PositionDefinition, POSITIONS_CATALOG } from '../data/positionsCatalog';
 
-export type { PositionDefinition };
+export type { PositionDefinition, DirectorTask };
 export { POSITIONS_CATALOG };
 
 /**
@@ -85,8 +86,142 @@ export function calculateHiringParameters(
   };
 }
 
+export interface EnqueueHiringTaskResult {
+  nextGame: GameSave;
+  task: DirectorTask;
+  event?: GameEvent;
+  isEnqueued: boolean;
+  searchDays: number;
+  salary: number;
+}
+
 /**
- * Inicia la búsqueda de personal por parte del Director Gerente
+ * Encola un encargo de contratación en la agenda del Director Gerente.
+ * Si el Director está libre, inicia de inmediato la búsqueda.
+ * Si está ocupado, la encola secuencialmente para comenzar en cuanto finalicen las previas.
+ */
+export function enqueueHiringTask(
+  game: GameSave,
+  positionKey: string,
+  experience: ExperienceLevel,
+  candidateName?: string,
+  manualDiceResult?: number
+): EnqueueHiringTaskResult {
+  const director = game.company.employees.find(e => e.isActive && e.position.toLowerCase().includes('director gerente'));
+  if (!director) {
+    throw new Error('No hay Director Gerente en la compañía para realizar la búsqueda de personal.');
+  }
+
+  const params = calculateHiringParameters(positionKey, experience, manualDiceResult);
+  const usedNames = game.company.employees.map(e => e.name);
+  const finalCandidateName = candidateName?.trim() || getUniqueRandomItems(PERSONNEL_NAMES, 1, usedNames)[0] || 'Candidato Desconocido';
+
+  const existingTasks = game.directorTasks || [];
+  const hasActiveTask = director.isBusy || existingTasks.some(t => t.status === 'activa');
+
+  let startDate = game.date;
+  let status: 'activa' | 'encolada' = 'activa';
+  let scheduledEvent: GameEvent | undefined = undefined;
+  let updatedEvents = game.events || [];
+  let updatedEmployees = [...game.company.employees];
+  const logNotes: string[] = [];
+
+  if (!hasActiveTask) {
+    // Iniciar de inmediato
+    const targetDate = advanceDays(game.date, params.searchDays).newDate;
+    status = 'activa';
+
+    const eventData = {
+      type: 'hire_resolution' as const,
+      title: `Candidato para ${positionKey}`,
+      description: `Búsqueda de ${positionKey} (${experience.toUpperCase()}). Candidato propuesto: ${finalCandidateName}.`,
+      targetDate,
+      assignedEmployeeId: director.id,
+      data: {
+        positionKey,
+        experience,
+        candidateName: finalCandidateName,
+        searchDays: params.searchDays,
+        monthlySalary: params.monthlySalary,
+        hireThreshold: params.hireThreshold
+      }
+    };
+
+    updatedEvents = addEvent(updatedEvents, eventData);
+    scheduledEvent = updatedEvents.find(
+      e => e.targetDate.day === targetDate.day && e.targetDate.month === targetDate.month && e.targetDate.year === targetDate.year && e.type === 'hire_resolution'
+    )!;
+
+    updatedEmployees = updatedEmployees.map(e => {
+      if (e.id === director.id) {
+        return {
+          ...e,
+          isBusy: true,
+          busyReason: `Buscando ${positionKey} (${experience})`,
+          busyUntilDate: targetDate
+        };
+      }
+      return e;
+    });
+
+    logNotes.push(`El Director Gerente inicia de inmediato la búsqueda de un ${positionKey} (${experience}). Duración: ${params.searchDays} días (hasta Día ${targetDate.day} / Mes ${targetDate.month}).`);
+  } else {
+    // Encolar tras la última tarea existente
+    const lastTask = existingTasks[existingTasks.length - 1];
+    startDate = lastTask ? lastTask.targetDate : game.date;
+    status = 'encolada';
+
+    logNotes.push(`Encargo añadido a la agenda del Director Gerente: Búsqueda de ${positionKey} (${experience}). Encolado en posición #${existingTasks.length + 1} para iniciar en cuanto concluyan las tareas previas.`);
+  }
+
+  const targetDate = advanceDays(startDate, params.searchDays).newDate;
+
+  const newTask: DirectorTask = {
+    id: `task_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    positionKey,
+    experience,
+    candidateName: finalCandidateName,
+    searchDays: params.searchDays,
+    monthlySalary: params.monthlySalary,
+    hireThreshold: params.hireThreshold,
+    status,
+    startDate,
+    targetDate,
+    createdAt: new Date().toISOString()
+  };
+
+  const newLogEntry = {
+    id: `log_task_${Date.now()}`,
+    gameDate: game.date,
+    category: 'tripulacion' as const,
+    action: status === 'activa' ? `Inicio búsqueda: ${positionKey}` : `Encolada búsqueda: ${positionKey}`,
+    details: logNotes.join(' '),
+    timestamp: new Date().toISOString()
+  };
+
+  const nextGame: GameSave = {
+    ...game,
+    company: {
+      ...game.company,
+      employees: updatedEmployees
+    },
+    events: updatedEvents,
+    directorTasks: [...existingTasks, newTask],
+    auditLog: [newLogEntry, ...game.auditLog]
+  };
+
+  return {
+    nextGame,
+    task: newTask,
+    event: scheduledEvent,
+    isEnqueued: status === 'encolada',
+    searchDays: params.searchDays,
+    salary: params.monthlySalary
+  };
+}
+
+/**
+ * Inicia la búsqueda de personal (mantiene compatibilidad directa)
  */
 export function startHiringSearch(
   game: GameSave,
@@ -101,76 +236,155 @@ export function startHiringSearch(
   salary: number;
 } {
   const director = game.company.employees.find(e => e.isActive && e.position.toLowerCase().includes('director gerente'));
-  if (!director) {
-    throw new Error('No hay Director Gerente en la compañía para realizar la búsqueda de personal.');
-  }
-
-  if (director.isBusy) {
+  if (director?.isBusy) {
     throw new Error(`El Director Gerente ya está ocupado: ${director.busyReason || 'tarea en curso'}.`);
   }
+  const res = enqueueHiringTask(game, positionKey, experience, candidateName, manualDiceResult);
+  return {
+    nextGame: res.nextGame,
+    event: res.event || (res.nextGame.events && res.nextGame.events[0])!,
+    searchDays: res.searchDays,
+    salary: res.salary
+  };
+}
 
-  const params = calculateHiringParameters(positionKey, experience, manualDiceResult);
-  const targetDate = advanceDays(game.date, params.searchDays).newDate;
+/**
+ * Promueve la siguiente tarea encolada a activa, o libera al Director si no hay más.
+ */
+export function promoteNextDirectorTask(game: GameSave): GameSave {
+  const director = game.company.employees.find(e => e.isActive && e.position.toLowerCase().includes('director gerente'));
+  if (!director) return game;
 
-  const usedNames = game.company.employees.map(e => e.name);
-  const finalCandidateName = candidateName?.trim() || getUniqueRandomItems(PERSONNEL_NAMES, 1, usedNames)[0] || 'Candidato Desconocido';
+  const tasks = game.directorTasks || [];
+  const remainingTasks = tasks.filter(t => t.status === 'encolada');
 
+  if (remainingTasks.length === 0) {
+    // No quedan tareas: Director libre
+    const updatedEmployees = game.company.employees.map(e => {
+      if (e.id === director.id) {
+        return {
+          ...e,
+          isBusy: false,
+          busyReason: undefined,
+          busyUntilDate: undefined
+        };
+      }
+      return e;
+    });
+
+    return {
+      ...game,
+      company: {
+        ...game.company,
+        employees: updatedEmployees
+      },
+      directorTasks: []
+    };
+  }
+
+  // Promover la primera tarea encolada a activa
+  const nextTask = remainingTasks[0];
+  const targetDate = advanceDays(game.date, nextTask.searchDays).newDate;
+
+  const activatedTask: DirectorTask = {
+    ...nextTask,
+    status: 'activa',
+    startDate: game.date,
+    targetDate
+  };
+
+  // Recalcular fechas para las tareas que quedan encoladas después de esta
+  let runningDate = targetDate;
+  const otherTasks: DirectorTask[] = [];
+  for (let i = 1; i < remainingTasks.length; i++) {
+    const t = remainingTasks[i];
+    const tStart = runningDate;
+    const tEnd = advanceDays(tStart, t.searchDays).newDate;
+    otherTasks.push({
+      ...t,
+      startDate: tStart,
+      targetDate: tEnd
+    });
+    runningDate = tEnd;
+  }
+
+  // Programar evento de resolución
   const eventData = {
     type: 'hire_resolution' as const,
-    title: `Candidato para ${positionKey}`,
-    description: `Búsqueda de ${positionKey} (${experience.toUpperCase()}). Candidato propuesto: ${finalCandidateName}.`,
+    title: `Candidato para ${activatedTask.positionKey}`,
+    description: `Búsqueda de ${activatedTask.positionKey} (${activatedTask.experience.toUpperCase()}). Candidato propuesto: ${activatedTask.candidateName}.`,
     targetDate,
     assignedEmployeeId: director.id,
     data: {
-      positionKey,
-      experience,
-      candidateName: finalCandidateName,
-      searchDays: params.searchDays,
-      monthlySalary: params.monthlySalary,
-      hireThreshold: params.hireThreshold
+      positionKey: activatedTask.positionKey,
+      experience: activatedTask.experience,
+      candidateName: activatedTask.candidateName,
+      searchDays: activatedTask.searchDays,
+      monthlySalary: activatedTask.monthlySalary,
+      hireThreshold: activatedTask.hireThreshold
     }
   };
 
   const updatedEvents = addEvent(game.events || [], eventData);
-  const scheduledEvent = updatedEvents.find(e => e.targetDate.day === targetDate.day && e.targetDate.month === targetDate.month && e.targetDate.year === targetDate.year && e.type === 'hire_resolution')!;
 
-  // Ocupar al Director Gerente
   const updatedEmployees = game.company.employees.map(e => {
     if (e.id === director.id) {
       return {
         ...e,
         isBusy: true,
-        busyReason: `Buscando ${positionKey} (${experience})`,
+        busyReason: `Buscando ${activatedTask.positionKey} (${activatedTask.experience})`,
         busyUntilDate: targetDate
       };
     }
     return e;
   });
 
-  const nextCompany = {
-    ...game.company,
-    employees: updatedEmployees
-  };
-
   const newLogEntry = {
-    id: `log_hire_start_${Date.now()}`,
+    id: `log_task_promo_${Date.now()}`,
     gameDate: game.date,
     category: 'tripulacion' as const,
-    action: `Inicio búsqueda de ${positionKey}`,
-    details: `El Director Gerente inicia la búsqueda de un ${positionKey} (${experience}). Duración prevista: ${params.searchDays} días (hasta Día ${targetDate.day} / Mes ${targetDate.month}). Salario pactado: ${params.monthlySalary} SC/mes.`,
+    action: `Activada tarea en cola: ${activatedTask.positionKey}`,
+    details: `El Director Gerente inicia la siguiente búsqueda en agenda: ${activatedTask.positionKey} (${activatedTask.experience}) hasta Día ${targetDate.day} / Mes ${targetDate.month}.`,
     timestamp: new Date().toISOString()
   };
 
   return {
-    nextGame: {
-      ...game,
-      company: nextCompany,
-      events: updatedEvents,
-      auditLog: [newLogEntry, ...game.auditLog]
+    ...game,
+    company: {
+      ...game.company,
+      employees: updatedEmployees
     },
-    event: scheduledEvent,
-    searchDays: params.searchDays,
-    salary: params.monthlySalary
+    events: updatedEvents,
+    directorTasks: [activatedTask, ...otherTasks],
+    auditLog: [newLogEntry, ...game.auditLog]
+  };
+}
+
+/**
+ * Cancela una tarea de la agenda del Director Gerente.
+ */
+export function cancelHiringTask(game: GameSave, taskId: string): GameSave {
+  const tasks = game.directorTasks || [];
+  const target = tasks.find(t => t.id === taskId);
+  if (!target) return game;
+
+  if (target.status === 'activa') {
+    const updatedEvents = (game.events || []).filter(e => {
+      const d = e.data as any;
+      return !(e.type === 'hire_resolution' && d && d.positionKey === target.positionKey);
+    });
+    const nextGame = {
+      ...game,
+      events: updatedEvents,
+      directorTasks: tasks.filter(t => t.id !== taskId)
+    };
+    return promoteNextDirectorTask(nextGame);
+  }
+
+  const remainingTasks = tasks.filter(t => t.id !== taskId);
+  return {
+    ...game,
+    directorTasks: remainingTasks
   };
 }
 
@@ -287,12 +501,20 @@ export function resolveHiringEvent(
     employees: updatedEmployees
   };
 
+  const remainingTasks = (game.directorTasks || []).filter(t => t.status !== 'activa');
+  const remainingEvents = (game.events || []).filter(e => e.id !== event.id);
+  const tempGame: GameSave = {
+    ...game,
+    company: nextCompany,
+    events: remainingEvents,
+    directorTasks: remainingTasks,
+    auditLog: [newLogEntry, ...game.auditLog]
+  };
+
+  const nextGame = promoteNextDirectorTask(tempGame);
+
   return {
-    nextGame: {
-      ...game,
-      company: nextCompany,
-      auditLog: [newLogEntry, ...game.auditLog]
-    },
+    nextGame,
     success,
     diceRollSum: diceSum,
     rollTotal,

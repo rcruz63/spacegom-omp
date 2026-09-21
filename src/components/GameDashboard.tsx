@@ -51,7 +51,7 @@ export function GameDashboard({ game: initialGame, onExitToMenu }: GameDashboard
 
   const milestone = calculateNextMilestone(game.date, game.events || []);
   const director = game.company.employees.find(e => e.isActive && e.position.toLowerCase().includes('director gerente'));
-
+  const queuedTasksCount = (game.directorTasks || []).filter(t => t.status === 'encolada').length;
   const handleAdvanceToMilestone = () => {
     const targetEvent = milestone.event;
     const res = advanceTimeToMilestone(game);
@@ -189,6 +189,11 @@ export function GameDashboard({ game: initialGame, onExitToMenu }: GameDashboard
             }`}>
               <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
               <span>Director: <strong>{director.isBusy ? director.busyReason : 'Disponible para encargos'}</strong></span>
+              {queuedTasksCount > 0 && (
+                <span className="ml-1 px-1.5 py-0.2 rounded bg-amber-900 text-amber-200 text-[10px] font-bold">
+                  +{queuedTasksCount} en agenda
+                </span>
+              )}
             </div>
           )}
 
