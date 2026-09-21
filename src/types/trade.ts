@@ -70,22 +70,7 @@ export interface CargoHandlingResult {
   }>;
   logNotes: string[];
 }
-export interface SpecialMission {
-  id: string;
-  code: string;
-  type: string;
-  originPlanetCode: number;
-  targetPlanetCode?: number;
-  deadlineDays: number;
-  maxDate: string;
-  rewardSC: number;
-  minReputation: number;
-  requiredPersonnel: string;
-  bookPage: number;
-  status: 'activa' | 'completada' | 'fallida';
-  notes: string;
-}
-
+export type { CampaignObjective, SpecialMission, GameMission, MissionCategory, MissionStatus } from './missions';
 export interface PassengerTransportResult {
   passengersCount: number;
   farePerPassenger: number;
