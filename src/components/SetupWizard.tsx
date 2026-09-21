@@ -1,10 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { Rocket, ArrowRight, ArrowLeft } from 'lucide-react';
-import { rollDice } from '../engine/dice';
 import { 
   findConsecutiveStartingPlanet, 
-  validateStartingPlanet, 
-  PlanetValidationResult 
+  validateStartingPlanet 
 } from '../engine/universe';
 import { INITIAL_CREW_ROSTER_TEMPLATE } from '../engine/company';
 import { COMPANY_NAMES, SHIP_NAMES, PERSONNEL_NAMES, getRandomItem, getUniqueRandomItems } from '../data/names';
@@ -24,60 +22,64 @@ interface SetupWizardProps {
 
 type Step = 'empresa' | 'ubicacion' | 'planeta' | 'tripulacion';
 
+const COLS = ['A', 'B', 'C', 'D', 'E', 'F'];
+
 export function SetupWizard({ onComplete, onCancel }: SetupWizardProps) {
   const [currentStep, setCurrentStep] = useState<Step>('empresa');
 
-  // --- PASO 1: Empresa, Nave, Dificultad (valores fijos oficiales del tutorial por defecto) ---
+  // --- PASO 1: Empresa, Nave, Dificultad (fijos del tutorial por defecto) ---
   const [saveName, setSaveName] = useState('Mi Campaña Spacegom');
   const [difficulty, setDifficulty] = useState<'facil' | 'normal' | 'dificil'>('normal');
   const [companyName, setCompanyName] = useState('Starblack');
   const [shipName, setShipName] = useState('Astronave I');
 
-  // --- PASO 2: Área y Sector ---
-  const [areaDice, setAreaDice] = useState<[number, number]>(() => {
-    const r = rollDice({ diceCount: 2 });
-    return [r.rolls[0], r.rolls[1]];
-  });
-  const [densityDice, setDensityDice] = useState<[number, number]>(() => {
-    const r = rollDice({ diceCount: 2 });
-    return [r.rolls[0], r.rolls[1]];
-  });
-  const [startCol, setStartCol] = useState<string>('C');
-  const [startRow, setStartRow] = useState<number>(4);
+  // --- PASO 2: Área y Sector (sin tirada previa al entrar) ---
+  const [areaDice, setAreaDice] = useState<[number, number] | null>(null);
+  const [densityDice, setDensityDice] = useState<[number, number] | null>(null);
+  const [quadrantDice, setQuadrantDice] = useState<[number, number] | null>(null);
 
-  const areaRoll = areaDice[0] + areaDice[1];
-  const densityRoll = densityDice[0] + densityDice[1];
-  const density: 'Baja' | 'Media' | 'Alta' = useMemo(() => {
+  const isAreaRolled = areaDice !== null;
+  const isDensityRolled = densityDice !== null;
+  const isQuadrantRolled = quadrantDice !== null;
+
+  const areaRoll = areaDice ? areaDice[0] + areaDice[1] : null;
+  const densityRoll = densityDice ? densityDice[0] + densityDice[1] : null;
+  const density: 'Baja' | 'Media' | 'Alta' | null = useMemo(() => {
+    if (densityRoll === null) return null;
     if (densityRoll <= 4) return 'Baja';
     if (densityRoll <= 9) return 'Media';
     return 'Alta';
   }, [densityRoll]);
 
-  // --- PASO 3: Planeta de Origen ---
-  const [dice3D6, setDice3D6] = useState<[number, number, number]>(() => {
-    const r = rollDice({ diceCount: 3 });
-    return [r.rolls[0], r.rolls[1], r.rolls[2]];
-  });
+  const startCol = quadrantDice ? COLS[quadrantDice[0] - 1] || 'A' : null;
+  const startRow = quadrantDice ? quadrantDice[1] : null;
 
-  const rawRolledCode = dice3D6[0] * 100 + dice3D6[1] * 10 + dice3D6[2];
+  // --- PASO 3: Planeta de Origen (sin tirada previa al entrar) ---
+  const [dice3D6, setDice3D6] = useState<[number, number, number] | null>(null);
+  const isPlanetRolled = dice3D6 !== null;
+  const rawRolledCode = dice3D6 ? dice3D6[0] * 100 + dice3D6[1] * 10 + dice3D6[2] : null;
+
   const [customPlanets, setCustomPlanets] = useState<Record<number, PlanetData>>({});
   const [isEditingPlanet, setIsEditingPlanet] = useState(false);
 
   const consecutiveDetails = useMemo(() => {
+    if (rawRolledCode === null) return null;
     return findConsecutiveStartingPlanet(rawRolledCode, [], customPlanets);
   }, [rawRolledCode, customPlanets]);
 
-  const activePlanet = consecutiveDetails.finalPlanet;
-  const activeValidation: PlanetValidationResult = useMemo(() => {
+  const activePlanet = consecutiveDetails ? consecutiveDetails.finalPlanet : null;
+  const activeValidation = useMemo(() => {
+    if (!activePlanet) return null;
     return validateStartingPlanet(activePlanet);
   }, [activePlanet]);
 
-  const [planetForm, setPlanetForm] = useState<PlanetData>(activePlanet);
+  const [planetForm, setPlanetForm] = useState<PlanetData | null>(null);
 
-  // --- PASO 4: Tripulación Inicial (oficial fija del tutorial por defecto) ---
+  // --- PASO 4: Tripulación Inicial (fija oficial del tutorial) ---
   const [crewNames, setCrewNames] = useState<string[]>(() => {
     return INITIAL_CREW_ROSTER_TEMPLATE.map(t => t.defaultName);
   });
+
   const totalCrewSalary = useMemo(() => {
     return INITIAL_CREW_ROSTER_TEMPLATE.reduce((sum, item) => sum + item.monthlySalary, 0);
   }, []);
@@ -88,20 +90,26 @@ export function SetupWizard({ onComplete, onCancel }: SetupWizardProps) {
   const handleShuffleCrewNames = () => setCrewNames(getUniqueRandomItems(PERSONNEL_NAMES, 11));
 
   const handleOpenEditPlanet = () => {
-    setPlanetForm({ ...activePlanet });
-    setIsEditingPlanet(true);
+    if (activePlanet) {
+      setPlanetForm({ ...activePlanet });
+      setIsEditingPlanet(true);
+    }
   };
 
   const handleSavePlanetEdit = (e: React.FormEvent) => {
     e.preventDefault();
-    setCustomPlanets(prev => ({
-      ...prev,
-      [planetForm.code]: { ...planetForm }
-    }));
-    setIsEditingPlanet(false);
+    if (planetForm) {
+      setCustomPlanets(prev => ({
+        ...prev,
+        [planetForm.code]: { ...planetForm }
+      }));
+      setIsEditingPlanet(false);
+    }
   };
 
   const handleFinalize = () => {
+    if (!areaRoll || !density || !startCol || !startRow || !activePlanet) return;
+
     onComplete({
       saveName,
       companyName,
@@ -116,6 +124,20 @@ export function SetupWizard({ onComplete, onCancel }: SetupWizardProps) {
       crewNames
     });
   };
+
+  // Validación de paso para botón Siguiente
+  const canAdvanceCurrentStep = useMemo(() => {
+    if (currentStep === 'empresa') {
+      return saveName.trim().length > 0 && companyName.trim().length > 0 && shipName.trim().length > 0;
+    }
+    if (currentStep === 'ubicacion') {
+      return isAreaRolled && isDensityRolled && isQuadrantRolled;
+    }
+    if (currentStep === 'planeta') {
+      return isPlanetRolled && activePlanet !== null;
+    }
+    return true;
+  }, [currentStep, saveName, companyName, shipName, isAreaRolled, isDensityRolled, isQuadrantRolled, isPlanetRolled, activePlanet]);
 
   return (
     <div className="fixed inset-0 z-50 bg-space-950/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
@@ -191,6 +213,10 @@ export function SetupWizard({ onComplete, onCancel }: SetupWizardProps) {
               difficulty={difficulty}
               areaDice={areaDice}
               densityDice={densityDice}
+              quadrantDice={quadrantDice}
+              isAreaRolled={isAreaRolled}
+              isDensityRolled={isDensityRolled}
+              isQuadrantRolled={isQuadrantRolled}
               areaRoll={areaRoll}
               densityRoll={densityRoll}
               density={density}
@@ -198,10 +224,7 @@ export function SetupWizard({ onComplete, onCancel }: SetupWizardProps) {
               startRow={startRow}
               onAreaDiceChange={setAreaDice}
               onDensityDiceChange={setDensityDice}
-              onSelectQuadrant={(c, r) => {
-                setStartCol(c);
-                setStartRow(r);
-              }}
+              onQuadrantDiceChange={setQuadrantDice}
             />
           )}
 
@@ -209,6 +232,7 @@ export function SetupWizard({ onComplete, onCancel }: SetupWizardProps) {
             <SetupStepPlanet
               difficulty={difficulty}
               dice3D6={dice3D6}
+              isPlanetRolled={isPlanetRolled}
               rawRolledCode={rawRolledCode}
               activePlanet={activePlanet}
               activeValidation={activeValidation}
@@ -225,11 +249,11 @@ export function SetupWizard({ onComplete, onCancel }: SetupWizardProps) {
               companyName={companyName}
               shipName={shipName}
               difficulty={difficulty}
-              areaRoll={areaRoll}
-              startCol={startCol}
-              startRow={startRow}
-              density={density}
-              activePlanet={activePlanet}
+              areaRoll={areaRoll || 2}
+              startCol={startCol || 'A'}
+              startRow={startRow || 1}
+              density={density || 'Media'}
+              activePlanet={activePlanet || { name: 'Por determinar', code: 111 } as PlanetData}
               onShuffleCrewNames={handleShuffleCrewNames}
             />
           )}
@@ -258,12 +282,13 @@ export function SetupWizard({ onComplete, onCancel }: SetupWizardProps) {
             {currentStep !== 'tripulacion' ? (
               <button
                 type="button"
+                disabled={!canAdvanceCurrentStep}
                 onClick={() => {
                   if (currentStep === 'empresa') setCurrentStep('ubicacion');
                   if (currentStep === 'ubicacion') setCurrentStep('planeta');
                   if (currentStep === 'planeta') setCurrentStep('tripulacion');
                 }}
-                className="flex items-center gap-1.5 px-5 py-2.5 bg-space-accent text-space-950 font-bold rounded-lg hover:bg-sky-400 text-xs transition-colors shadow"
+                className="flex items-center gap-1.5 px-5 py-2.5 bg-space-accent text-space-950 font-bold rounded-lg hover:bg-sky-400 text-xs transition-colors shadow disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <span>Siguiente</span>
                 <ArrowRight className="w-4 h-4" />
@@ -271,8 +296,9 @@ export function SetupWizard({ onComplete, onCancel }: SetupWizardProps) {
             ) : (
               <button
                 type="button"
+                disabled={!canAdvanceCurrentStep}
                 onClick={handleFinalize}
-                className="flex items-center gap-2 px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-space-950 font-black rounded-lg text-sm transition-colors shadow-lg shadow-emerald-500/20"
+                className="flex items-center gap-2 px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-space-950 font-black rounded-lg text-sm transition-colors shadow-lg shadow-emerald-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Rocket className="w-4 h-4" />
                 <span>Fundar Compañía e Iniciar Campaña</span>
@@ -283,13 +309,15 @@ export function SetupWizard({ onComplete, onCancel }: SetupWizardProps) {
       </div>
 
       {/* Modal para editar datos del planeta */}
-      <PlanetEditModal
-        isOpen={isEditingPlanet}
-        planetForm={planetForm}
-        setPlanetForm={setPlanetForm}
-        onSave={handleSavePlanetEdit}
-        onClose={() => setIsEditingPlanet(false)}
-      />
+      {planetForm && (
+        <PlanetEditModal
+          isOpen={isEditingPlanet}
+          planetForm={planetForm}
+          setPlanetForm={setPlanetForm as React.Dispatch<React.SetStateAction<PlanetData>>}
+          onSave={handleSavePlanetEdit}
+          onClose={() => setIsEditingPlanet(false)}
+        />
+      )}
     </div>
   );
 }
