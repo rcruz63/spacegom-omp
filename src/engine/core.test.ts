@@ -32,7 +32,7 @@ describe('Calendar Engine', () => {
     expect(formatDate(d)).toBe('Día 01 / Mes 01 / Año 2880');
   });
 
-  it('advances days and detects weekly/monthly admin due', () => {
+  it('advances days and detects weekly/monthly admin due on day 35', () => {
     const start = createInitialDate(2880, 1, 1);
     // Advance 6 days -> Día 7 (Semanal)
     const adv1 = advanceDays(start, 6);
@@ -40,15 +40,21 @@ describe('Calendar Engine', () => {
     expect(adv1.isWeeklyAdminDue).toBe(true);
     expect(adv1.isMonthlyAdminDue).toBe(false);
 
-    // Advance 21 more days -> Día 28 (Semanal + Mensual)
+    // Advance 21 more days -> Día 28 (Semanal, pero aún no mensual en mes de 35 días)
     const adv2 = advanceDays(adv1.newDate, 21);
     expect(adv2.newDate).toEqual({ year: 2880, month: 1, day: 28 });
     expect(adv2.isWeeklyAdminDue).toBe(true);
-    expect(adv2.isMonthlyAdminDue).toBe(true);
+    expect(adv2.isMonthlyAdminDue).toBe(false);
+
+    // Advance 7 more days -> Día 35 (Semanal + Cierre Mensual y nóminas)
+    const adv3 = advanceDays(adv2.newDate, 7);
+    expect(adv3.newDate).toEqual({ year: 2880, month: 1, day: 35 });
+    expect(adv3.isWeeklyAdminDue).toBe(true);
+    expect(adv3.isMonthlyAdminDue).toBe(true);
 
     // Advance 1 day -> Día 1 Mes 2
-    const adv3 = advanceDays(adv2.newDate, 1);
-    expect(adv3.newDate).toEqual({ year: 2880, month: 2, day: 1 });
+    const adv4 = advanceDays(adv3.newDate, 1);
+    expect(adv4.newDate).toEqual({ year: 2880, month: 2, day: 1 });
   });
 
   it('converts to absolute days and back accurately', () => {

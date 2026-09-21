@@ -2,7 +2,7 @@ import { GameDate, AuditLogEntry } from './common';
 import { UniverseState } from './universe';
 import { CompanyState } from './company';
 import { TradeOrder, SpecialMission } from './trade';
-
+import { GameEvent } from './events';
 export interface GameSave {
   id: string;
   name: string;
@@ -13,6 +13,7 @@ export interface GameSave {
   universe: UniverseState;
   tradeOrders: TradeOrder[];
   missions: SpecialMission[];
+  events?: GameEvent[];
   auditLog: AuditLogEntry[];
 }
 

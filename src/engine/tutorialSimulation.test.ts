@@ -9,9 +9,9 @@ import { performMonthlyAdministration } from './administration';
 
 describe('Spacegom Tutorial Walkthrough Simulation', () => {
   it('executes the full tutorial flow step-by-step maintaining exact gamebook rules', () => {
-    // 1. Iniciar partida: Día 1 Mes 1 Año 2880, Tesorería 400 SC (dificultad normal)
+    // 1. Iniciar partida: Día 1 Mes 1 Año 2880, Tesorería 400 SC (dificultad difícil)
     let date = createInitialDate(2880, 1, 1);
-    let company = createInitialCompany('Starblack', 'normal');
+    let company = createInitialCompany('Starblack', 'dificil');
 
     expect(company.treasury).toBe(400);
     expect(company.reputation).toBe(0);
@@ -131,12 +131,12 @@ describe('Spacegom Tutorial Walkthrough Simulation', () => {
     date = advanceDays(date, refuelRes.daysTaken).newDate;
     expect(company.ship.fuelCurrent).toBe(20);
 
-    // 12. Avance temporal hasta fin de mes (Día 28) ejecutando administración semanal y mensual
-    const daysToMonthEnd = 28 - date.day;
+    // 12. Avance temporal hasta fin de mes (Día 35) ejecutando administración semanal y mensual
+    const daysToMonthEnd = 35 - date.day;
     const advMonth = advanceDays(date, daysToMonthEnd);
     date = advMonth.newDate;
 
-    expect(date.day).toBe(28);
+    expect(date.day).toBe(35);
     expect(advMonth.isMonthlyAdminDue).toBe(true);
 
     // Ejecutar administración mensual completa (pago de nóminas, gastos de burocracia, litigios)

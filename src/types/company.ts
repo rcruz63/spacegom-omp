@@ -1,5 +1,7 @@
 import { ExperienceLevel, MoraleLevel, HealthLevel } from './common';
 
+import { GameDate } from './common';
+
 export interface Employee {
   id: number;
   name: string;
@@ -10,8 +12,10 @@ export interface Employee {
   weaponId?: string;
   isSick?: boolean;
   isActive: boolean;
+  isBusy?: boolean;
+  busyReason?: string;
+  busyUntilDate?: GameDate;
 }
-
 export interface Spaceship {
   name: string;
   model: string;
@@ -67,4 +71,5 @@ export interface CompanyState {
   lifeSupport: LifeSupportInventory;
   healthLevel: HealthLevel;
   weapons: Weapon[];
+  isBankrupt?: boolean;
 }

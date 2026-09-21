@@ -13,6 +13,7 @@ export interface MonthlyAdminResult {
   operatingCosts: number;
   maintenanceDamages: number;
   moraleChanges: string[];
+  isBankrupt: boolean;
   logNotes: string[];
 }
 
@@ -106,6 +107,10 @@ export function performMonthlyAdministration(company: CompanyState): MonthlyAdmi
     reputation = Math.max(0, reputation - 1);
     logNotes.push('Sin abogado en plantilla: Reputación disminuye en 1 por litigios desatendidos.');
   }
+  const isBankrupt = treasury < 0;
+  if (isBankrupt) {
+    logNotes.push(`¡QUIEBRA! La tesorería de la compañía ha entrado en saldo negativo (${treasury} SC).`);
+  }
 
   return {
     nextCompany: {
@@ -113,13 +118,15 @@ export function performMonthlyAdministration(company: CompanyState): MonthlyAdmi
       treasury,
       reputation,
       ship,
-      loans: updatedLoans
+      loans: updatedLoans,
+      isBankrupt
     },
     totalSalariesPaid,
     loansPaid,
     operatingCosts,
     maintenanceDamages,
     moraleChanges,
+    isBankrupt,
     logNotes
   };
 }

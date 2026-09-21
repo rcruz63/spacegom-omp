@@ -1,7 +1,7 @@
 import { GameDate } from '../types/common';
 
 export const DAYS_PER_WEEK = 7;
-export const DAYS_PER_MONTH = 28;
+export const DAYS_PER_MONTH = 35;
 export const MONTHS_PER_YEAR = 12;
 export const INITIAL_YEAR = 2880;
 
@@ -68,13 +68,13 @@ export function advanceDays(current: GameDate, days: number): CalendarAdvanceRes
       weeksCrossed.push(dayDate.day / DAYS_PER_WEEK);
     }
 
-    // Fin de mes en día 28
+    // Fin de mes en día 35 (cierre contable y nóminas)
     if (dayDate.day === DAYS_PER_MONTH) {
       isMonthlyAdminDue = true;
       monthsCrossed.push(dayDate.month);
     }
 
-    // Fin de año en mes 12 día 28
+    // Fin de año en mes 12 día 35
     if (dayDate.month === 1 && dayDate.day === 1 && step > 1) {
       yearsCrossed.push(dayDate.year);
     }
@@ -92,4 +92,14 @@ export function advanceDays(current: GameDate, days: number): CalendarAdvanceRes
     isWeeklyAdminDue,
     isMonthlyAdminDue
   };
+}
+
+export function daysUntilNextPayday(date: GameDate): number {
+  if (date.day === DAYS_PER_MONTH) return DAYS_PER_MONTH;
+  return DAYS_PER_MONTH - date.day;
+}
+
+export function getNextPaydayDate(date: GameDate): GameDate {
+  const days = daysUntilNextPayday(date);
+  return advanceDays(date, days).newDate;
 }
