@@ -12,6 +12,48 @@ export interface BuyGoodsParams {
   company: CompanyState;
   negotiationRollTotal: number;
   isDoubleSix?: boolean;
+  gameDate?: { year: number; month: number; day: number };
+  existingOrdersCountInArea?: number;
+}
+
+/**
+ * Calcula el precio unitario negociado de compra según la tirada de 2D6 del negociador.
+ * Regla de Spacegom:
+ * - Tirada <= 6: Precio base * 1.2 (redondeo al alza).
+ * - Tirada 7-9: Precio base * 1.0.
+ * - Tirada >= 10: Precio base * 0.8 (redondeo al alza).
+ */
+export function calculateNegotiatedBuyUnitPrice(
+  baseBuyPrice: number,
+  rollTotal: number
+): { unitPrice: number; factor: number } {
+  if (rollTotal <= 6) {
+    return { unitPrice: Math.ceil(baseBuyPrice * 1.2), factor: 1.2 };
+  }
+  if (rollTotal >= 10) {
+    return { unitPrice: Math.ceil(baseBuyPrice * 0.8), factor: 0.8 };
+  }
+  return { unitPrice: baseBuyPrice, factor: 1.0 };
+}
+
+/**
+ * Calcula el precio unitario negociado de venta según la tirada de 2D6 del negociador.
+ * Regla de Spacegom:
+ * - Tirada <= 6: Precio base * 0.8 (redondeo a la baja).
+ * - Tirada 7-9: Precio base * 1.0.
+ * - Tirada >= 10: Precio base * 1.2 (redondeo al alza).
+ */
+export function calculateNegotiatedSellUnitPrice(
+  baseSellPrice: number,
+  rollTotal: number
+): { unitPrice: number; factor: number } {
+  if (rollTotal <= 6) {
+    return { unitPrice: Math.floor(baseSellPrice * 0.8), factor: 0.8 };
+  }
+  if (rollTotal >= 10) {
+    return { unitPrice: Math.ceil(baseSellPrice * 1.2), factor: 1.2 };
+  }
+  return { unitPrice: baseSellPrice, factor: 1.0 };
 }
 
 export function buyGoods(params: BuyGoodsParams): {
@@ -31,15 +73,7 @@ export function buyGoods(params: BuyGoodsParams): {
     throw new Error(`Capacidad insuficiente en almacén (disponible: ${spaceAvailable} UCN)`);
   }
 
-  // Factor de negociación: <=6 -> x1.2 (redondeo alza); 7-9 -> x1.0; >=10 -> x0.8 (redondeo alza)
-  let factor = 1.0;
-  if (negotiationRollTotal <= 6) {
-    factor = 1.2;
-  } else if (negotiationRollTotal >= 10) {
-    factor = 0.8;
-  }
-
-  const unitPrice = Math.ceil(prod.baseBuyPrice * factor);
+  const { unitPrice } = calculateNegotiatedBuyUnitPrice(prod.baseBuyPrice, negotiationRollTotal);
   const totalCost = unitPrice * ucnAmount;
 
   if (company.treasury < totalCost) {
@@ -64,6 +98,9 @@ export function buyGoods(params: BuyGoodsParams): {
     totalBuyCost: totalCost,
     buyPlanetCode: planet.code,
     buyDate: new Date().toISOString(),
+    buyGameDate: params.gameDate,
+    hasConvenioTraceability: planet.convenio_spacegom === 1,
+    orderRowNumber: (params.existingOrdersCountInArea || 0) + 1,
     isSold: false
   };
 
@@ -92,6 +129,8 @@ export interface SellGoodsParams {
   company: CompanyState;
   negotiationRollTotal: number;
   isDoubleSix?: boolean;
+  gameDate?: { year: number; month: number; day: number };
+  ucnToSell?: number; // Para venta parcial en mundos sin convenio
 }
 
 export function sellGoods(params: SellGoodsParams): {
@@ -108,16 +147,16 @@ export function sellGoods(params: SellGoodsParams): {
 
   const logNotes: string[] = [];
 
-  // Factor venta: <=6 -> x0.8 (redondeo baja); 7-9 -> x1.0; >=10 -> x1.2 (redondeo alza)
-  let unitPrice = prod.baseSellPrice;
-  if (negotiationRollTotal <= 6) {
-    unitPrice = Math.floor(prod.baseSellPrice * 0.8);
-  } else if (negotiationRollTotal >= 10) {
-    unitPrice = Math.ceil(prod.baseSellPrice * 1.2);
-  }
+  const ucnAmount = params.ucnToSell !== undefined ? Math.min(params.ucnToSell, order.ucnAmount) : order.ucnAmount;
+  const { unitPrice } = calculateNegotiatedSellUnitPrice(prod.baseSellPrice, negotiationRollTotal);
+  const totalRevenue = unitPrice * ucnAmount;
+  const proportionalBuyCost = Math.round((order.totalBuyCost * ucnAmount) / order.ucnAmount);
+  const profit = totalRevenue - proportionalBuyCost;
 
-  const totalRevenue = unitPrice * order.ucnAmount;
-  const profit = totalRevenue - order.totalBuyCost;
+  const isPartial = ucnAmount < order.ucnAmount;
+  // Si se vende parcialmente o en mundo sin convenio, se rompe trazabilidad
+  const retainsTraceability = order.hasConvenioTraceability && planet.convenio_spacegom === 1 && !isPartial;
+
 
   const negotiator = company.employees.find(e => e.isActive && e.position.toLowerCase().includes('compraventa'));
   let updatedEmployees = company.employees;
@@ -129,11 +168,15 @@ export function sellGoods(params: SellGoodsParams): {
 
   const updatedOrder: TradeOrder = {
     ...order,
-    isSold: true,
+    isSold: !isPartial,
+    ucnAmount: isPartial ? order.ucnAmount - ucnAmount : order.ucnAmount,
     sellPlanetCode: planet.code,
     sellPricePerUcn: unitPrice,
-    totalSellRevenue: totalRevenue,
-    sellDate: new Date().toISOString()
+    totalSellRevenue: (order.totalSellRevenue || 0) + totalRevenue,
+    profit: (order.profit || 0) + profit,
+    sellDate: new Date().toISOString(),
+    sellGameDate: params.gameDate,
+    hasConvenioTraceability: retainsTraceability
   };
 
   logNotes.push(`Vendidas ${order.ucnAmount} UCN de ${prod.name} por ${totalRevenue} SC (${unitPrice} SC/UCN). Beneficio neto: ${profit} SC.`);
