@@ -14,10 +14,17 @@ describe('Company Engine', () => {
   it('creates initial company with tutorial default roster and settings', () => {
     const comp = createInitialCompany('Starblack', 'normal');
     expect(comp.name).toBe('Starblack');
-    expect(comp.treasury).toBe(400);
+    expect(comp.treasury).toBe(500);
     expect(comp.employees.length).toBe(11);
+    expect(getTotalMonthlySalaries(comp.employees)).toBe(76);
     expect(comp.ship.fuelCurrent).toBe(20);
     expect(comp.lifeSupport.standardSuit).toBe(1);
+
+    const facil = createInitialCompany('Starblack', 'facil');
+    expect(facil.treasury).toBe(600);
+
+    const dificil = createInitialCompany('Starblack', 'dificil');
+    expect(dificil.treasury).toBe(400);
   });
 
   it('calculates employee dice modifiers correctly', () => {
@@ -81,7 +88,7 @@ describe('Weekly & Monthly Administration', () => {
     const comp = createInitialCompany();
     const weekly = performWeeklyAdministration(comp);
     // Thomas Müller is Director, no Vice-director -> -8 SC
-    expect(weekly.nextCompany.treasury).toBe(392);
+    expect(weekly.nextCompany.treasury).toBe(492);
   });
 
   it('performs monthly administration deducting payroll and operational costs', () => {

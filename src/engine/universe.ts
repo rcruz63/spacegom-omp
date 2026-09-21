@@ -38,39 +38,166 @@ export function createSectorArea(id: number, density: 'Baja' | 'Media' | 'Alta')
   };
 }
 
-export function isValidStartingPlanet(p: PlanetData): boolean {
-  if (p.population_over_1000 !== 1) return false;
-  const techLower = (p.tech_level || '').toLowerCase();
-  if (techLower.includes('primitivo') || techLower.includes('rudimentario')) return false;
-  const lifeLower = (p.life_support || '').toLowerCase();
-  if (lifeLower.includes('avanzado') || lifeLower.includes('hiperavanzado')) return false;
-  if (p.convenio_spacegom !== 1) return false;
+export interface PlanetValidationCheck {
+  passed: boolean;
+  label: string;
+  detail: string;
+}
 
-  const producesProduct = 
+export interface PlanetValidationResult {
+  isValid: boolean;
+  checks: {
+    population: PlanetValidationCheck;
+    technology: PlanetValidationCheck;
+    lifeSupport: PlanetValidationCheck;
+    convenio: PlanetValidationCheck;
+    products: PlanetValidationCheck;
+  };
+  reasons: string[];
+}
+
+export function validateStartingPlanet(p: PlanetData): PlanetValidationResult {
+  // 1. Población > 1.000 habitantes
+  const hasPopulation = p.population_over_1000 === 1;
+  const popCheck: PlanetValidationCheck = {
+    passed: hasPopulation,
+    label: 'Población > 1.000',
+    detail: hasPopulation ? 'Población superior a 1.000 hab.' : 'Población insuficiente o deshabitado'
+  };
+
+  // 2. Nivel tecnológico apto (no primitivo ni rudimentario)
+  const techLower = (p.tech_level || '').toLowerCase().trim();
+  const isTechPrimitive = techLower.includes('primitivo') || techLower.includes('rudimentario');
+  const techCheck: PlanetValidationCheck = {
+    passed: !isTechPrimitive,
+    label: 'Tecnología Apta',
+    detail: isTechPrimitive ? `Nivel incompatible (${p.tech_level})` : (p.tech_level ? `Nivel ${p.tech_level}` : 'Estándar espacial')
+  };
+
+  // 3. Soporte vital apto (no requiere trajes avanzados o hiperavanzados)
+  const lifeLower = (p.life_support || '').toLowerCase().trim();
+  const isLifeAdvanced = lifeLower.includes('avanzado') || lifeLower.includes('hiperavanzado');
+  const lifeCheck: PlanetValidationCheck = {
+    passed: !isLifeAdvanced,
+    label: 'Soporte Vital',
+    detail: isLifeAdvanced ? `Requiere equipo avanzado (${p.life_support})` : (p.life_support || 'Estándar')
+  };
+
+  // 4. Convenio Universal Spacegom
+  const hasConvenio = p.convenio_spacegom === 1;
+  const convCheck: PlanetValidationCheck = {
+    passed: hasConvenio,
+    label: 'Convenio Spacegom',
+    detail: hasConvenio ? 'Adscrito al Convenio Spacegom' : 'Sin convenio Spacegom'
+  };
+
+  // 5. Capacidad productiva (al menos un producto para comerciar)
+  const producesProduct =
     p.product_indu > 0 || p.product_basi > 0 || p.product_alim > 0 ||
     p.product_made > 0 || p.product_agua > 0 || p.product_mico > 0 ||
     p.product_mira > 0 || p.product_mipr > 0 || p.product_pava > 0 ||
     p.product_a > 0 || p.product_ae > 0 || p.product_aei > 0 || p.product_com > 0;
+  const prodCheck: PlanetValidationCheck = {
+    passed: producesProduct,
+    label: 'Producción Comercial',
+    detail: producesProduct ? 'Produce bienes comerciales' : 'Sin producción comercial activa'
+  };
 
-  return producesProduct;
+  const checks = {
+    population: popCheck,
+    technology: techCheck,
+    lifeSupport: lifeCheck,
+    convenio: convCheck,
+    products: prodCheck
+  };
+
+  const reasons: string[] = [];
+  if (!popCheck.passed) reasons.push(popCheck.detail);
+  if (!techCheck.passed) reasons.push(techCheck.detail);
+  if (!lifeCheck.passed) reasons.push(lifeCheck.detail);
+  if (!convCheck.passed) reasons.push(convCheck.detail);
+  if (!prodCheck.passed) reasons.push(prodCheck.detail);
+
+  return {
+    isValid: reasons.length === 0,
+    checks,
+    reasons
+  };
 }
 
-export function findFirstValidStartingPlanet(candidateCode: number, usedCodes: number[] = []): PlanetData {
+export function isValidStartingPlanet(p: PlanetData): boolean {
+  return validateStartingPlanet(p).isValid;
+}
+
+export interface ConsecutiveSearchDetails {
+  initialCode: number;
+  initialPlanet: PlanetData;
+  initialValidation: PlanetValidationResult;
+  stepsCount: number;
+  sequenceVisited: Array<{ code: number; name: string; reasons: string[] }>;
+  finalPlanet: PlanetData;
+}
+
+export function findConsecutiveStartingPlanet(
+  candidateCode: number,
+  usedCodes: number[] = [],
+  customPlanets?: Record<number, PlanetData>
+): ConsecutiveSearchDetails {
+  const getPlanet = (code: number): PlanetData => {
+    if (customPlanets && customPlanets[code]) return customPlanets[code];
+    return PLANETS_BY_CODE[code] || ALL_PLANETS[0];
+  };
+
   let startIndex = ALL_PLANETS.findIndex(p => p.code === candidateCode);
   if (startIndex === -1) startIndex = 0;
 
   const total = ALL_PLANETS.length;
+  const initialPlanet = getPlanet(ALL_PLANETS[startIndex].code);
+  const initialValidation = validateStartingPlanet(initialPlanet);
+
+  const sequenceVisited: Array<{ code: number; name: string; reasons: string[] }> = [];
+
   for (let i = 0; i < total; i++) {
     const idx = (startIndex + i) % total;
-    const p = ALL_PLANETS[idx];
-    if (!usedCodes.includes(p.code) && isValidStartingPlanet(p)) {
-      return p;
+    const rawPlanet = ALL_PLANETS[idx];
+    const p = getPlanet(rawPlanet.code);
+    const validation = validateStartingPlanet(p);
+
+    if (!usedCodes.includes(p.code) && validation.isValid) {
+      return {
+        initialCode: candidateCode,
+        initialPlanet,
+        initialValidation,
+        stepsCount: i,
+        sequenceVisited,
+        finalPlanet: p
+      };
     }
+
+    sequenceVisited.push({
+      code: p.code,
+      name: p.name,
+      reasons: validation.reasons
+    });
   }
 
-  return ALL_PLANETS[0];
+  return {
+    initialCode: candidateCode,
+    initialPlanet,
+    initialValidation,
+    stepsCount: 0,
+    sequenceVisited,
+    finalPlanet: initialPlanet
+  };
 }
 
+export function findFirstValidStartingPlanet(
+  candidateCode: number,
+  usedCodes: number[] = [],
+  customPlanets?: Record<number, PlanetData>
+): PlanetData {
+  return findConsecutiveStartingPlanet(candidateCode, usedCodes, customPlanets).finalPlanet;
+}
 export function roll3D6PlanetCode(manualDice?: [number, number, number]): number {
   if (manualDice) {
     return manualDice[0] * 100 + manualDice[1] * 10 + manualDice[2];

@@ -77,14 +77,68 @@ export function updateEmployeeAfterRoll(
   };
 }
 
+export interface InitialCompanyOptions {
+  name?: string;
+  shipName?: string;
+  difficulty?: 'facil' | 'normal' | 'dificil';
+  initialTreasury?: number;
+  customCrew?: Employee[];
+  crewNames?: string[];
+}
+
+export const INITIAL_CREW_ROSTER_TEMPLATE = [
+  { position: 'Director gerente', monthlySalary: 20, experience: 'veterano' as ExperienceLevel, morale: 'alta' as MoraleLevel, defaultName: 'Widaker Farq' },
+  { position: 'Comandante de hipersaltos', monthlySalary: 15, experience: 'veterano' as ExperienceLevel, morale: 'media' as MoraleLevel, defaultName: 'Samantha Warm' },
+  { position: 'Ingeniero computacional', monthlySalary: 4, experience: 'novato' as ExperienceLevel, morale: 'baja' as MoraleLevel, defaultName: 'Thomas Muller' },
+  { position: 'Ingeniero de astronavegación', monthlySalary: 8, experience: 'estandar' as ExperienceLevel, morale: 'media' as MoraleLevel, defaultName: 'Walter Lopez' },
+  { position: 'Técnico de repostaje y análisis', monthlySalary: 8, experience: 'estandar' as ExperienceLevel, morale: 'media' as MoraleLevel, defaultName: 'Jeffrey Cook' },
+  { position: 'Piloto', monthlySalary: 10, experience: 'veterano' as ExperienceLevel, morale: 'media' as MoraleLevel, defaultName: 'Danielle Rivers' },
+  { position: 'Operario de logística y almacén', monthlySalary: 1, experience: 'estandar' as ExperienceLevel, morale: 'media' as MoraleLevel, defaultName: 'Isaac Peterson' },
+  { position: 'Contabilidad y burocracia', monthlySalary: 3, experience: 'estandar' as ExperienceLevel, morale: 'media' as MoraleLevel, defaultName: 'Katherine Smith' },
+  { position: 'Suministros de mantenimiento', monthlySalary: 3, experience: 'estandar' as ExperienceLevel, morale: 'media' as MoraleLevel, defaultName: 'Jason Wilson' },
+  { position: 'Cocinero', monthlySalary: 3, experience: 'estandar' as ExperienceLevel, morale: 'alta' as MoraleLevel, defaultName: 'Sam Hernández' },
+  { position: 'Asistente doméstico', monthlySalary: 1, experience: 'novato' as ExperienceLevel, morale: 'media' as MoraleLevel, defaultName: 'Alexandra Adams' }
+];
+
+export function generateInitialCrew(crewNames?: string[]): Employee[] {
+  return INITIAL_CREW_ROSTER_TEMPLATE.map((template, index) => {
+    const name = crewNames && crewNames[index] ? crewNames[index] : template.defaultName;
+    return {
+      id: index + 1,
+      position: template.position,
+      name,
+      monthlySalary: template.monthlySalary,
+      experience: template.experience,
+      morale: template.morale,
+      isActive: true
+    };
+  });
+}
+
+export function getDifficultyTreasury(difficulty: 'facil' | 'normal' | 'dificil'): number {
+  switch (difficulty) {
+    case 'facil': return 600;
+    case 'normal': return 500;
+    case 'dificil': return 400;
+    default: return 500;
+  }
+}
+
 export function createInitialCompany(
-  name = 'Starblack',
-  difficulty: 'facil' | 'normal' | 'dificil' = 'normal'
+  nameOrOptions: string | InitialCompanyOptions = 'Starblack',
+  difficultyArg: 'facil' | 'normal' | 'dificil' = 'normal'
 ): CompanyState {
-  const initialTreasury = difficulty === 'facil' ? 500 : difficulty === 'normal' ? 400 : 300;
+  const options: InitialCompanyOptions = typeof nameOrOptions === 'object'
+    ? nameOrOptions
+    : { name: nameOrOptions, difficulty: difficultyArg };
+
+  const companyName = options.name || 'Starblack';
+  const shipName = options.shipName || 'Astronave I';
+  const difficulty = options.difficulty || 'normal';
+  const initialTreasury = options.initialTreasury ?? getDifficultyTreasury(difficulty);
 
   const initialShip: Spaceship = {
-    name: 'Astronave I',
+    name: shipName,
     model: 'Transporte Ligero Clase A',
     hyperspaceRange: 10,
     fuelCurrent: 20,
@@ -109,23 +163,10 @@ export function createInitialCompany(
     hyperAdvancedSuit: 0
   };
 
-  // 11 tripulantes iniciales
-  const defaultCrew: Employee[] = [
-    { id: 1, position: 'Director gerente', name: 'Thomas Müller', monthlySalary: 20, experience: 'estandar', morale: 'alta', isActive: true },
-    { id: 2, position: 'Comandante de hipersaltos', name: 'Walter López', monthlySalary: 15, experience: 'estandar', morale: 'media', isActive: true },
-    { id: 3, position: 'Ingeniero computacional', name: 'Jeffrey Cook', monthlySalary: 4, experience: 'estandar', morale: 'media', isActive: true },
-    { id: 4, position: 'Ingeniero de astronavegación', name: 'Danielle Rivers', monthlySalary: 8, experience: 'estandar', morale: 'media', isActive: true },
-    { id: 5, position: 'Técnico de repostaje y análisis', name: 'Isaac Peterson', monthlySalary: 8, experience: 'estandar', morale: 'media', isActive: true },
-    { id: 6, position: 'Piloto', name: 'Katherine Smith', monthlySalary: 10, experience: 'estandar', morale: 'media', isActive: true },
-    { id: 7, position: 'Operario de logística y almacén', name: 'Jason Wilson', monthlySalary: 1, experience: 'estandar', morale: 'media', isActive: true },
-    { id: 8, position: 'Resp. contabilidad y burocracia', name: 'Alexandra Adams', monthlySalary: 3, experience: 'estandar', morale: 'media', isActive: true },
-    { id: 9, position: 'Cocinero', name: 'Samantha Warn', monthlySalary: 3, experience: 'estandar', morale: 'media', isActive: true },
-    { id: 10, position: 'Asistente doméstico', name: 'Widaker Farq', monthlySalary: 1, experience: 'estandar', morale: 'media', isActive: true },
-    { id: 11, position: 'Auxiliar de vuelo', name: 'Sam Hernández', monthlySalary: 1, experience: 'novato', morale: 'media', isActive: true }
-  ];
+  const defaultCrew: Employee[] = options.customCrew || generateInitialCrew(options.crewNames);
 
   return {
-    name,
+    name: companyName,
     reputation: 0,
     treasury: initialTreasury,
     employees: defaultCrew,

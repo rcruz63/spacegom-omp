@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { GameSummary, GameSave } from '../types/game';
 import { formatDate } from '../engine/calendar';
-import { createNewGame, deleteGame, loadAllSaves } from '../engine/storage';
+import { createNewGame, deleteGame, loadAllSaves, NewGameOptions } from '../engine/storage';
+import { SetupWizard } from './SetupWizard';
 import { Rocket, Plus, Trash2, Play, Calendar, Users, Globe, Coins, Award } from 'lucide-react';
 
 interface SavesManagerProps {
@@ -23,11 +24,7 @@ export function SavesManager({ onSelectGame }: SavesManagerProps) {
       updatedAt: g.updatedAt
     }));
   });
-
   const [isCreating, setIsCreating] = useState(false);
-  const [newCompanyName, setNewCompanyName] = useState('Starblack');
-  const [newSaveName, setNewSaveName] = useState('Mi Campaña Spacegom');
-
   const refreshSaves = () => {
     const all = loadAllSaves();
     setSaves(all.map(g => ({
@@ -44,9 +41,8 @@ export function SavesManager({ onSelectGame }: SavesManagerProps) {
     })));
   };
 
-  const handleCreate = (e: React.FormEvent) => {
-    e.preventDefault();
-    const game = createNewGame(newCompanyName.trim() || 'Starblack', newSaveName.trim());
+  const handleSetupComplete = (options: NewGameOptions) => {
+    const game = createNewGame(options);
     setIsCreating(false);
     refreshSaves();
     onSelectGame(game);
@@ -86,50 +82,10 @@ export function SavesManager({ onSelectGame }: SavesManagerProps) {
       </div>
 
       {isCreating && (
-        <div className="mb-8 p-6 bg-space-800 border border-space-600 rounded-xl shadow-xl">
-          <h2 className="text-lg font-bold text-slate-100 mb-4">Iniciar Nueva Campaña</h2>
-          <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs uppercase font-semibold text-slate-300 mb-1">
-                Nombre de la Partida
-              </label>
-              <input
-                type="text"
-                value={newSaveName}
-                onChange={e => setNewSaveName(e.target.value)}
-                className="w-full bg-space-900 border border-space-600 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-space-accent"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-xs uppercase font-semibold text-slate-300 mb-1">
-                Nombre de la Compañía
-              </label>
-              <input
-                type="text"
-                value={newCompanyName}
-                onChange={e => setNewCompanyName(e.target.value)}
-                className="w-full bg-space-900 border border-space-600 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-space-accent"
-                required
-              />
-            </div>
-            <div className="md:col-span-2 flex justify-end gap-3 mt-2">
-              <button
-                type="button"
-                onClick={() => setIsCreating(false)}
-                className="px-4 py-2 border border-space-600 text-slate-300 rounded-lg hover:bg-space-700"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-space-accent text-space-900 font-bold rounded-lg hover:bg-sky-400"
-              >
-                Comenzar Campaña
-              </button>
-            </div>
-          </form>
-        </div>
+        <SetupWizard
+          onComplete={handleSetupComplete}
+          onCancel={() => setIsCreating(false)}
+        />
       )}
 
       {saves.length === 0 ? (
