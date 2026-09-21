@@ -1,9 +1,17 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { GameSave } from '../../types/game';
-import { refuelShip, repairShip } from '../../engine/spaceport';
 import { PLANETS_BY_CODE } from '../../engine/universe';
-import { advanceDays } from '../../engine/calendar';
-import { Wrench, Fuel, Satellite } from 'lucide-react';
+import { getSpaceportRepairCapability } from '../../engine/spaceport';
+import { SpaceportDockingModal } from '../spaceport/SpaceportDockingModal';
+import { SpaceportRefuelModal } from '../spaceport/SpaceportRefuelModal';
+import { SpaceportRepairModal } from '../spaceport/SpaceportRepairModal';
+import { 
+  Wrench, 
+  Fuel, 
+  Satellite, 
+  Anchor, 
+  CheckCircle2 
+} from 'lucide-react';
 
 interface SpaceportOperationsViewProps {
   game: GameSave;
@@ -13,87 +21,73 @@ interface SpaceportOperationsViewProps {
 export function SpaceportOperationsView({ game, onUpdateGame }: SpaceportOperationsViewProps) {
   const currentPlanet = game.universe.currentPlanetCode ? PLANETS_BY_CODE[game.universe.currentPlanetCode] : null;
 
-  const [fuelUnits, setFuelUnits] = useState<number>(10);
-  const [mechanicRoll, setMechanicRoll] = useState<number>(8);
+  const [isDockingModalOpen, setIsDockingModalOpen] = useState(false);
+  const [isRefuelModalOpen, setIsRefuelModalOpen] = useState(false);
+  const [isRepairModalOpen, setIsRepairModalOpen] = useState(false);
 
-  const neededFuel = game.company.ship.fuelMax - game.company.ship.fuelCurrent;
+  const isDockedAtSpaceport = game.universe.currentLocation === 'espaciopuerto';
+  const neededFuel = Math.max(0, game.company.ship.fuelMax - game.company.ship.fuelCurrent);
+  const totalDamages = game.company.ship.damageLight + game.company.ship.damageModerate + game.company.ship.damageHeavy;
 
-  const handleRefuel = () => {
-    if (!currentPlanet) {
-      alert('Debes estar en un espaciopuerto para repostar.');
-      return;
-    }
-
-    try {
-      const res = refuelShip(game.company, currentPlanet, fuelUnits);
-      const adv = advanceDays(game.date, res.daysTaken);
-
-      const updatedLog = [
-        {
-          id: `log_refuel_${Date.now()}`,
-          gameDate: adv.newDate,
-          category: 'nave' as const,
-          action: 'Repostaje en Espaciopuerto',
-          details: res.logNotes.join(' '),
-          timestamp: new Date().toISOString()
-        },
-        ...game.auditLog
-      ];
-
-      onUpdateGame({
-        ...game,
-        date: adv.newDate,
-        company: res.nextCompany,
-        auditLog: updatedLog
-      });
-
-      alert(`¡Repostaje completado! ${res.unitsRefueled} unidades por ${res.totalCost} SC (${res.daysTaken} días).`);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      alert(msg);
-    }
-  };
-
-  const handleRepair = (damageType: 'leve' | 'moderado' | 'grave') => {
-    if (!currentPlanet) {
-      alert('Debes estar en un espaciopuerto para reparar la nave.');
-      return;
-    }
-
-    try {
-      const res = repairShip(game.company, damageType, mechanicRoll);
-      const adv = advanceDays(game.date, res.daysTaken);
-
-      const updatedLog = [
-        {
-          id: `log_repair_${Date.now()}`,
-          gameDate: adv.newDate,
-          category: 'nave' as const,
-          action: 'Reparación de Daños',
-          details: res.logNotes.join(' '),
-          timestamp: new Date().toISOString()
-        },
-        ...game.auditLog
-      ];
-
-      onUpdateGame({
-        ...game,
-        date: adv.newDate,
-        company: res.nextCompany,
-        auditLog: updatedLog
-      });
-
-      alert(`¡Daño ${damageType} reparado! Coste: ${res.cost} SC (${res.daysTaken} días).`);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      alert(msg);
-    }
-  };
+  const repairCap = useMemo(() => {
+    return getSpaceportRepairCapability(currentPlanet?.spaceport_quality || 'MED');
+  }, [currentPlanet?.spaceport_quality]);
 
   return (
     <div className="space-y-6">
+      
+      {/* Banner de Estado de Amarre */}
+      {currentPlanet ? (
+        <div className={`p-4 rounded-xl border flex flex-wrap items-center justify-between gap-4 ${
+          isDockedAtSpaceport 
+            ? 'bg-emerald-950/30 border-emerald-800/60 text-emerald-300' 
+            : 'bg-space-800 border-space-700 text-slate-300'
+        }`}>
+          <div className="flex items-center gap-3">
+            <div className={`p-2.5 rounded-lg border ${
+              isDockedAtSpaceport ? 'bg-emerald-900/60 border-emerald-700 text-emerald-300' : 'bg-space-900 border-space-700 text-space-accent'
+            }`}>
+              <Anchor className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="font-bold text-sm text-slate-100">
+                {isDockedAtSpaceport 
+                  ? `Nave Amarrada en el Espaciopuerto de ${currentPlanet.name}` 
+                  : `Nave en aproximación a ${currentPlanet.name}`}
+              </h4>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Calidad: <strong className="text-slate-200">{currentPlanet.spaceport_quality}</strong> · 
+                Combustible: <strong className="text-slate-200">{currentPlanet.fuel_density}</strong> · 
+                Tasa de Amarre: <strong className="text-amber-300 font-mono">{currentPlanet.docking_price} SC</strong>
+              </p>
+            </div>
+          </div>
+
+          {!isDockedAtSpaceport ? (
+            <button
+              type="button"
+              onClick={() => setIsDockingModalOpen(true)}
+              className="px-4 py-2 bg-space-accent hover:bg-sky-400 text-space-950 font-bold text-xs rounded-lg flex items-center gap-1.5 shadow transition-colors"
+            >
+              <Anchor className="w-4 h-4" />
+              <span>Efectuar Maniobra de Amarre (Tirada Piloto)</span>
+            </button>
+          ) : (
+            <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 bg-emerald-950/60 px-3 py-1.5 rounded-lg border border-emerald-800">
+              <CheckCircle2 className="w-4 h-4" />
+              <span>Muelle de Amarre Ocupado</span>
+            </span>
+          )}
+        </div>
+      ) : (
+        <div className="p-4 bg-space-800/60 border border-space-700 rounded-xl text-center text-xs text-slate-400">
+          Navega a un planeta con espaciopuerto para repostar o reparar tu astronave.
+        </div>
+      )}
+
       {/* Ship Status Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        
         {/* Fuel Card */}
         <div className="bg-space-800 border border-space-700 rounded-xl p-6 shadow-xl flex flex-col justify-between">
           <div>
@@ -102,41 +96,45 @@ export function SpaceportOperationsView({ game, onUpdateGame }: SpaceportOperati
                 <Fuel className="w-5 h-5 text-amber-400" />
                 <span>Estación de Repostaje de Combustible</span>
               </h3>
-              <span className="text-xs font-mono text-amber-300">
-                {game.company.ship.fuelCurrent} / {game.company.ship.fuelMax} Unidades
+              <span className="text-xs font-mono text-amber-300 font-bold">
+                {game.company.ship.fuelCurrent} / {game.company.ship.fuelMax} U.
               </span>
             </div>
 
             <p className="text-xs text-slate-400 mb-4">
-              Calidad de combustible local: <span className="font-semibold text-slate-200">{currentPlanet?.fuel_density || 'Estándar'}</span>.
-              Coste: 3 SC/unidad + 1 SC/día de ocupación del espaciopuerto.
+              Calidad local: <strong className="text-slate-200">{currentPlanet?.fuel_density || 'Estándar'}</strong>.
+              Coste: 3 SC/unidad + 1 SC/día de ocupación del muelle.
             </p>
 
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs uppercase font-semibold text-slate-300 mb-1">
-                  Unidades a Repostar (Máx faltante: {neededFuel})
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  max={neededFuel || 1}
-                  value={fuelUnits}
-                  onChange={e => setFuelUnits(Number(e.target.value))}
-                  className="w-full bg-space-900 border border-space-600 rounded-lg px-3 py-2 text-xs text-slate-100"
-                  disabled={neededFuel <= 0}
-                />
+            <div className="space-y-2 text-xs text-slate-300">
+              <div className="flex justify-between">
+                <span>Espacio disponible en depósito:</span>
+                <span className="font-mono font-bold text-slate-100">{neededFuel} unidades</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Coste unitario:</span>
+                <span className="font-mono text-amber-300">3 SC / unidad</span>
               </div>
             </div>
           </div>
 
-          <button
-            onClick={handleRefuel}
-            disabled={neededFuel <= 0 || !currentPlanet}
-            className="mt-6 w-full py-2.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-space-900 font-bold text-xs rounded-lg transition-colors shadow"
-          >
-            {neededFuel <= 0 ? 'Depósito Lleno' : 'Repostar Combustible'}
-          </button>
+          <div className="mt-6">
+            <button
+              type="button"
+              onClick={() => setIsRefuelModalOpen(true)}
+              disabled={neededFuel <= 0 || !currentPlanet || !isDockedAtSpaceport}
+              className="w-full py-2.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-space-950 font-bold text-xs rounded-lg transition-colors shadow flex items-center justify-center gap-2 disabled:cursor-not-allowed"
+            >
+              <Fuel className="w-4 h-4" />
+              <span>
+                {neededFuel <= 0 
+                  ? 'Depósito al Máximo' 
+                  : !isDockedAtSpaceport 
+                    ? 'Requiere Amarre en Espaciopuerto' 
+                    : 'Repostar Combustible'}
+              </span>
+            </button>
+          </div>
         </div>
 
         {/* Repair Card */}
@@ -145,59 +143,53 @@ export function SpaceportOperationsView({ game, onUpdateGame }: SpaceportOperati
             <div className="flex items-center justify-between pb-3 mb-3 border-b border-space-700">
               <h3 className="text-md font-bold text-slate-100 flex items-center gap-2">
                 <Wrench className="w-5 h-5 text-space-accent" />
-                <span>Hangar de Reparaciones</span>
+                <span>Astillero y Reparación de Astronave</span>
               </h3>
-              <span className="text-xs font-mono text-rose-400">
-                {game.company.ship.damageLight} leves, {game.company.ship.damageModerate} mod, {game.company.ship.damageHeavy} grav
+              <span className={`text-xs font-mono font-bold ${
+                totalDamages > 0 ? 'text-rose-400' : 'text-emerald-400'
+              }`}>
+                {game.company.ship.damageLight}L · {game.company.ship.damageModerate}M · {game.company.ship.damageHeavy}G
               </span>
             </div>
 
             <p className="text-xs text-slate-400 mb-4">
-              Calidad del taller: <span className="font-semibold text-slate-200">{currentPlanet?.spaceport_quality || 'Rudimentaria'}</span>.
-              Tirada de Técnico de Mantenimiento reduce costes y tiempos al 50%.
+              Astillero: <strong className="text-slate-200">{repairCap.tierLabel}</strong>.
+              Tirada del Técnico de Mantenimiento reduce costes y tiempos al 50%.
             </p>
 
-            <div className="mb-4">
-              <label className="block text-xs uppercase font-semibold text-slate-300 mb-1">
-                Tirada Mecánico (2D6 + mods)
-              </label>
-              <input
-                type="number"
-                min="2"
-                max="15"
-                value={mechanicRoll}
-                onChange={e => setMechanicRoll(Number(e.target.value))}
-                className="w-full bg-space-900 border border-space-600 rounded-lg px-3 py-2 text-xs text-slate-100"
-              />
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                onClick={() => handleRepair('leve')}
-                disabled={game.company.ship.damageLight <= 0}
-                className="py-2 px-2 bg-space-700 hover:bg-space-600 disabled:opacity-40 text-slate-200 text-xs font-semibold rounded-lg border border-space-600"
-              >
-                Daño Leve ({game.company.ship.damageLight})
-              </button>
-
-              <button
-                onClick={() => handleRepair('moderado')}
-                disabled={game.company.ship.damageModerate <= 0}
-                className="py-2 px-2 bg-space-700 hover:bg-space-600 disabled:opacity-40 text-slate-200 text-xs font-semibold rounded-lg border border-space-600"
-              >
-                Daño Moderado ({game.company.ship.damageModerate})
-              </button>
-
-              <button
-                onClick={() => handleRepair('grave')}
-                disabled={game.company.ship.damageHeavy <= 0}
-                className="py-2 px-2 bg-space-700 hover:bg-space-600 disabled:opacity-40 text-slate-200 text-xs font-semibold rounded-lg border border-space-600"
-              >
-                Daño Grave ({game.company.ship.damageHeavy})
-              </button>
+            <div className="space-y-2 text-xs text-slate-300">
+              <div className="flex justify-between">
+                <span>Daños actuales en casco:</span>
+                <span className={totalDamages > 0 ? 'text-rose-400 font-bold' : 'text-emerald-400'}>
+                  {totalDamages === 0 ? 'Sin daños estructurales' : `${totalDamages} daños pendientes`}
+                </span>
+              </div>
+              <div className="flex justify-between text-[11px] text-slate-400">
+                <span>Capacidad taller:</span>
+                <span>{repairCap.canRepairHeavy ? 'Avanzado' : repairCap.canRepairModerate ? 'Normal' : 'Limitado'}</span>
+              </div>
             </div>
           </div>
+
+          <div className="mt-6">
+            <button
+              type="button"
+              onClick={() => setIsRepairModalOpen(true)}
+              disabled={totalDamages <= 0 || !currentPlanet || !isDockedAtSpaceport || !repairCap.isAvailable}
+              className="w-full py-2.5 bg-space-accent hover:bg-sky-400 disabled:opacity-50 text-space-950 font-bold text-xs rounded-lg transition-colors shadow flex items-center justify-center gap-2 disabled:cursor-not-allowed"
+            >
+              <Wrench className="w-4 h-4" />
+              <span>
+                {totalDamages <= 0
+                  ? 'Casco sin Daños'
+                  : !isDockedAtSpaceport
+                    ? 'Requiere Amarre en Espaciopuerto'
+                    : 'Reparar Astronave en Astillero'}
+              </span>
+            </button>
+          </div>
         </div>
+
       </div>
 
       {/* Orbital Facilities Section */}
@@ -217,7 +209,7 @@ export function SpaceportOperationsView({ game, onUpdateGame }: SpaceportOperati
                 </p>
               </div>
               <span className={`mt-3 font-semibold ${currentPlanet.orbital_cartography_center ? 'text-emerald-400' : 'text-slate-500'}`}>
-                {currentPlanet.orbital_cartography_center ? 'Disponible en órbita' : 'No disponible'}
+                {currentPlanet.orbital_cartography_center ? '✓ Disponible en órbita' : '✗ No disponible'}
               </span>
             </div>
 
@@ -229,7 +221,7 @@ export function SpaceportOperationsView({ game, onUpdateGame }: SpaceportOperati
                 </p>
               </div>
               <span className={`mt-3 font-semibold ${currentPlanet.orbital_supply_depot ? 'text-emerald-400' : 'text-slate-500'}`}>
-                {currentPlanet.orbital_supply_depot ? 'Disponible en órbita' : 'No disponible'}
+                {currentPlanet.orbital_supply_depot ? '✓ Disponible en órbita' : '✗ No disponible'}
               </span>
             </div>
 
@@ -241,7 +233,7 @@ export function SpaceportOperationsView({ game, onUpdateGame }: SpaceportOperati
                 </p>
               </div>
               <span className={`mt-3 font-semibold ${currentPlanet.orbital_astro_academy ? 'text-emerald-400' : 'text-slate-500'}`}>
-                {currentPlanet.orbital_astro_academy ? 'Disponible en órbita' : 'No disponible'}
+                {currentPlanet.orbital_astro_academy ? '✓ Disponible en órbita' : '✗ No disponible'}
               </span>
             </div>
           </div>
@@ -251,6 +243,36 @@ export function SpaceportOperationsView({ game, onUpdateGame }: SpaceportOperati
           </p>
         )}
       </div>
+
+      {/* Modales de Espaciopuerto */}
+      {currentPlanet && (
+        <>
+          <SpaceportDockingModal
+            isOpen={isDockingModalOpen}
+            onClose={() => setIsDockingModalOpen(false)}
+            game={game}
+            planet={currentPlanet}
+            onUpdateGame={onUpdateGame}
+          />
+
+          <SpaceportRefuelModal
+            isOpen={isRefuelModalOpen}
+            onClose={() => setIsRefuelModalOpen(false)}
+            game={game}
+            planet={currentPlanet}
+            onUpdateGame={onUpdateGame}
+          />
+
+          <SpaceportRepairModal
+            isOpen={isRepairModalOpen}
+            onClose={() => setIsRepairModalOpen(false)}
+            game={game}
+            planet={currentPlanet}
+            onUpdateGame={onUpdateGame}
+          />
+        </>
+      )}
+
     </div>
   );
 }
