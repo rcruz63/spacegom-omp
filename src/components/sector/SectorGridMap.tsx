@@ -6,7 +6,6 @@ import {
   Star, 
   Globe, 
   EyeOff, 
-  Radio, 
   Compass
 } from 'lucide-react';
 
@@ -85,7 +84,7 @@ export function SectorGridMap({
               <span>Base Origen</span>
             </span>
             <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded bg-slate-900 border border-slate-800 inline-block" />
+              <span className="w-2.5 h-2.5 rounded bg-slate-300/60 border border-slate-400 inline-block backdrop-blur-sm" />
               <span>Niebla de Guerra</span>
             </span>
           </div>
@@ -141,18 +140,20 @@ export function SectorGridMap({
                             ? 'ring-1 ring-emerald-400 bg-space-900/90 border-emerald-700/80'
                             : isConfigured
                               ? 'bg-space-900/80 border border-space-700/70 hover:border-space-500 hover:bg-space-800/60'
-                              : 'bg-black/70 border border-space-800/40 hover:border-space-700/60'
+                              : 'bg-gradient-to-br from-slate-200/30 via-zinc-300/20 to-slate-400/25 backdrop-blur-md border border-slate-400/40 hover:from-slate-200/40 hover:to-slate-300/35 hover:border-slate-300/60 shadow-inner'
                       }`}
                     >
-                      {/* NIEBLA DE GUERRA (Si no está configurado) */}
+                      {/* NIEBLA DE GUERRA (Color niebla / blanco sucio / gris claro sin texto) */}
                       {!isConfigured ? (
-                        <div className="w-full h-full flex flex-col items-center justify-center text-slate-600 gap-1 select-none">
-                          <div className="w-6 h-6 rounded-full bg-space-950/80 border border-dashed border-space-800 flex items-center justify-center">
-                            <Radio className="w-3 h-3 text-slate-600 group-hover:text-space-accent transition-colors" />
-                          </div>
-                          <span className="text-[9px] font-mono tracking-tighter text-slate-600 group-hover:text-slate-400">
-                            Niebla
+                        <div className="w-full h-full flex flex-col justify-between p-0.5 select-none relative">
+                          {/* Coordenada visible sutilmente a través de la niebla */}
+                          <span className="text-[9px] font-mono font-black text-slate-800/70">
+                            {quadKey}
                           </span>
+                          {/* Capa de neblina interna */}
+                          <div className="w-full flex-1 flex items-center justify-center">
+                            <div className="w-6 h-6 rounded-full bg-white/20 border border-white/30 backdrop-blur-sm opacity-60 group-hover:opacity-90 group-hover:scale-110 transition-all shadow-sm" />
+                          </div>
                         </div>
                       ) : (
                         /* CUADRANTE EXPLORADO */
